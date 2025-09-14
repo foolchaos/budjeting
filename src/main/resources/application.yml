@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/budjeting
+    username: budjet
+    password: budjet
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+vaadin:
+  productionMode: true
