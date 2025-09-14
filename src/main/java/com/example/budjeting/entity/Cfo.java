@@ -26,4 +26,11 @@ public class Cfo {
 
     @OneToOne(mappedBy = "cfo")
     private Request request;
+
+    @PreRemove
+    private void preRemove() {
+        if (request != null) {
+            request.setCfo(null);
+        }
+    }
 }

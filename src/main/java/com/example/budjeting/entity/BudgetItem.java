@@ -35,4 +35,11 @@ public class BudgetItem {
 
     @OneToOne(mappedBy = "budgetItem")
     private Request request;
+
+    @PreRemove
+    private void preRemove() {
+        if (request != null) {
+            request.setBudgetItem(null);
+        }
+    }
 }
