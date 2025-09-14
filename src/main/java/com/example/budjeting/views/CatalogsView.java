@@ -10,7 +10,6 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
-import com.vaadin.flow.component.tabs.Tabs.Orientation;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.data.binder.BeanValidationBinder;
@@ -32,7 +31,7 @@ public class CatalogsView extends SplitLayout {
                         ContractRepository contractRepo) {
         setSizeFull();
         Tabs tabs = new Tabs();
-        tabs.setOrientation(Orientation.VERTICAL);
+        tabs.setOrientation(Tabs.Orientation.VERTICAL);
         Tab bdzTab = new Tab("БДЗ");
         Tab boTab = new Tab("БО");
         Tab curatorTab = new Tab("ЗГД");
