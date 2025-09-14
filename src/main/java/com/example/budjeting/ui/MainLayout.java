@@ -4,12 +4,13 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
-import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouterLink;
 
-@Route("")
-public class MainView extends AppLayout {
-    public MainView() {
+/**
+ * Main application layout containing top level navigation tabs.
+ */
+public class MainLayout extends AppLayout {
+    public MainLayout() {
         Tabs tabs = new Tabs();
         tabs.add(createTab("Справочники", ReferencesView.class),
                  createTab("Заявки", RequestsView.class));

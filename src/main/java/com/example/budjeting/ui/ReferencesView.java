@@ -1,34 +1,51 @@
 package com.example.budjeting.ui;
 
-import com.example.budjeting.model.BudgetArticle;
-import com.example.budjeting.repository.BudgetArticleRepository;
-import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.textfield.TextField;
+import com.example.budjeting.repository.*;
+import com.example.budjeting.ui.references.*;
+import com.vaadin.flow.component.listbox.ListBox;
+import com.vaadin.flow.component.splitlayout.SplitLayout;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.router.Route;
 
-@Route(value = "references", layout = MainView.class)
-public class ReferencesView extends VerticalLayout {
+/**
+ * View containing all reference data management UIs.
+ */
+@Route(value = "", layout = MainLayout.class)
+public class ReferencesView extends SplitLayout {
+    private final Div content = new Div();
 
-    public ReferencesView(BudgetArticleRepository repository) {
-        Grid<BudgetArticle> grid = new Grid<>(BudgetArticle.class, false);
-        grid.addColumn(BudgetArticle::getCode).setHeader("Код");
-        grid.addColumn(BudgetArticle::getName).setHeader("Наименование");
-        grid.setItems(repository.findAll());
+    public ReferencesView(BudgetArticleRepository budgetRepo,
+                          BOArticleRepository boRepo,
+                          SupervisorRepository supervisorRepo,
+                          CFORepository cfoRepo,
+                          MVZRepository mvzRepo,
+                          ContractRepository contractRepo) {
+        setSizeFull();
+        ListBox<String> list = new ListBox<>();
+        list.setItems("БДЗ", "БО", "ЗГД", "ЦФО", "МВЗ", "Договор");
+        list.addValueChangeListener(e -> show(e.getValue(), budgetRepo, boRepo, supervisorRepo, cfoRepo, mvzRepo, contractRepo));
+        content.setSizeFull();
+        addToPrimary(list);
+        addToSecondary(content);
+        list.setValue("БДЗ");
+        show("БДЗ", budgetRepo, boRepo, supervisorRepo, cfoRepo, mvzRepo, contractRepo);
+    }
 
-        TextField code = new TextField("Код");
-        TextField name = new TextField("Наименование");
-        Button add = new Button("Добавить", e -> {
-            BudgetArticle ba = new BudgetArticle();
-            ba.setCode(code.getValue());
-            ba.setName(name.getValue());
-            repository.save(ba);
-            grid.setItems(repository.findAll());
-            code.clear();
-            name.clear();
-        });
-
-        add(grid, code, name, add);
+    private void show(String name,
+                       BudgetArticleRepository budgetRepo,
+                       BOArticleRepository boRepo,
+                       SupervisorRepository supervisorRepo,
+                       CFORepository cfoRepo,
+                       MVZRepository mvzRepo,
+                       ContractRepository contractRepo) {
+        content.removeAll();
+        switch (name) {
+            case "БДЗ" -> content.add(new BudgetArticleView(budgetRepo));
+            case "БО" -> content.add(new BOArticleView(boRepo, budgetRepo));
+            case "ЗГД" -> content.add(new SupervisorView(supervisorRepo, budgetRepo));
+            case "ЦФО" -> content.add(new CFOView(cfoRepo));
+            case "МВЗ" -> content.add(new MVZView(mvzRepo, cfoRepo));
+            case "Договор" -> content.add(new ContractView(contractRepo));
+        }
     }
 }

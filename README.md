@@ -1,6 +1,6 @@
 # Budjeting Application
 
-This project is a Spring Boot + Vaadin application for budgeting requests. It includes basic entities and a minimal UI with two tabs: references and requests.
+This project is a Spring Boot + Vaadin application for budgeting requests. The UI exposes two tabs: **Справочники** for maintaining reference data (Budget Articles, BO Articles, Supervisors, CFO, MVZ and Contracts) and **Заявки** for managing requests through a multi-step wizard.
 
 ## Build
 
