@@ -1,5 +1,6 @@
 # Build stage
-FROM maven:3.9.2-eclipse-temurin-21 AS build
+# Use an existing Maven image tag to avoid build failures
+FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
