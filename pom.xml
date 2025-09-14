@@ -11,6 +11,7 @@
         <java.version>21</java.version>
         <spring.boot.version>3.1.2</spring.boot.version>
         <vaadin.version>24.1.2</vaadin.version>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -67,6 +68,14 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>${java.version}</release>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
@@ -85,4 +94,12 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>production</id>
+            <properties>
+                <vaadin.productionMode>true</vaadin.productionMode>
+            </properties>
+        </profile>
+    </profiles>
 </project>
