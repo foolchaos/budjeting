@@ -73,55 +73,55 @@ public class RequestsView extends VerticalLayout {
         grid.addColumn(Request::getNumber)
                 .setHeader("Номер")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.getBdz() != null ? r.getBdz().getName() : "—")
                 .setHeader("БДЗ")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.getCfo() != null ? r.getCfo().getName() : "—")
                 .setHeader("ЦФО")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.getMvz() != null ? r.getMvz().getName() : "—")
                 .setHeader("МВЗ")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(Request::getVgo)
                 .setHeader("ВГО")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.getBo() != null ? r.getBo().getName() : "—")
                 .setHeader("БО")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.getContract() != null ? r.getContract().getName() : "—")
                 .setHeader("Контрагент")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.getAmount() != null ? r.getAmount().toPlainString() : "—")
                 .setHeader("Сумма")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.getAmountNoVat() != null ? r.getAmountNoVat().toPlainString() : "—")
                 .setHeader("Сумма без НДС")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(Request::getSubject)
                 .setHeader("Предмет")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(Request::getPeriod)
                 .setHeader("Период")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(r -> r.isInputObject() ? "Да" : "Нет")
                 .setHeader("Вводный объект")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
         grid.addColumn(Request::getProcurementMethod)
                 .setHeader("Способ закупки")
                 .setAutoWidth(true)
-                .setFlexGrow(0);
+                .setFlexGrow(1);
 
         grid.addItemClickListener(e -> openCard(e.getItem()));
     }
