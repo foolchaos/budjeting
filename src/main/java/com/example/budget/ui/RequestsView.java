@@ -17,6 +17,7 @@ import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
@@ -208,7 +209,6 @@ public class RequestsView extends VerticalLayout {
     // === Wizard ===
     private void openWizard() {
         Dialog d = new Dialog("Создание заявки");
-        d.setWidth("900px");
 
         // step 1: choose CFO and MVZ
         ComboBox<Cfo> cfo = new ComboBox<>("ЦФО");
@@ -265,9 +265,24 @@ public class RequestsView extends VerticalLayout {
         // simple step control
         Span step = new Span("Шаг 1 из 4");
         VerticalLayout step1 = new VerticalLayout(cfo, mvz);
+        step1.setPadding(false);
+        step1.setSpacing(false);
+        step1.setWidth("400px");
+
         VerticalLayout step2 = new VerticalLayout(bdz, bo, zgd);
+        step2.setPadding(false);
+        step2.setSpacing(false);
+        step2.setWidth("400px");
+
         VerticalLayout step3 = new VerticalLayout(contract);
+        step3.setPadding(false);
+        step3.setSpacing(false);
+        step3.setWidth("400px");
+
         VerticalLayout step4 = new VerticalLayout(vgo, amount, amountNoVat, subject, period, pm, input);
+        step4.setPadding(false);
+        step4.setSpacing(false);
+        step4.setWidth("400px");
         step2.setVisible(false);
         step3.setVisible(false);
         step4.setVisible(false);
@@ -335,7 +350,17 @@ public class RequestsView extends VerticalLayout {
         });
         Button close = new Button("Закрыть", e -> d.close());
 
-        d.add(step, step1, step2, step3, step4, new HorizontalLayout(back, next, save, close));
+        HorizontalLayout actions = new HorizontalLayout(back, next, save, close);
+        actions.setPadding(false);
+        actions.setSpacing(true);
+
+        VerticalLayout content = new VerticalLayout(step, step1, step2, step3, step4, actions);
+        content.setPadding(false);
+        content.setSpacing(false);
+        content.setAlignItems(Alignment.CENTER);
+        content.setWidth("400px");
+
+        d.add(content);
         d.open();
     }
 }
