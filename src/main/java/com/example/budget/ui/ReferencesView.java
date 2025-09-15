@@ -113,9 +113,7 @@ public class ReferencesView extends SplitLayout {
     }
 
     private void openBdzCard(Bdz entity, TreeGrid<Bdz> tree) {
-        if (entity.getId() != null) {
-            entity = bdzService.findById(entity.getId());
-        }
+        Bdz bean = entity.getId() != null ? bdzService.findById(entity.getId()) : entity;
 
         Dialog dlg = new Dialog("Статья БДЗ");
         dlg.setWidth("500px");
@@ -125,13 +123,13 @@ public class ReferencesView extends SplitLayout {
         TextField name = new TextField("Наименование");
         ComboBox<Bdz> parent = new ComboBox<>("Родитель");
         java.util.List<Bdz> options = bdzService.findAll().stream()
-                .filter(b -> !Objects.equals(b.getId(), entity.getId()))
+                .filter(b -> !Objects.equals(b.getId(), bean.getId()))
                 .toList();
         parent.setItems(options);
         parent.setItemLabelGenerator(Bdz::getName);
-        if (entity.getParent() != null) {
-            Long pid = entity.getParent().getId();
-            entity.setParent(options.stream()
+        if (bean.getParent() != null) {
+            Long pid = bean.getParent().getId();
+            bean.setParent(options.stream()
                     .filter(b -> Objects.equals(b.getId(), pid))
                     .findFirst().orElse(null));
         }
@@ -139,7 +137,7 @@ public class ReferencesView extends SplitLayout {
         binder.bind(code, Bdz::getCode, Bdz::setCode);
         binder.bind(name, Bdz::getName, Bdz::setName);
         binder.bind(parent, Bdz::getParent, Bdz::setParent);
-        binder.setBean(entity);
+        binder.setBean(bean);
 
         Button save = new Button("Сохранить", e -> {
             bdzService.save(binder.getBean());
@@ -147,8 +145,8 @@ public class ReferencesView extends SplitLayout {
             dlg.close();
         });
         Button delete = new Button("Удалить", e -> {
-            if (entity.getId() != null) {
-                bdzService.deleteById(entity.getId());
+            if (bean.getId() != null) {
+                bdzService.deleteById(bean.getId());
                 refreshBdz(tree);
             }
             dlg.close();
