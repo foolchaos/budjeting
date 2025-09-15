@@ -5,6 +5,7 @@ import com.example.budget.service.BdzService;
 import com.example.budget.repo.BoRepository;
 import com.example.budget.repo.CfoRepository;
 import com.example.budget.repo.MvzRepository;
+import com.example.budget.repo.ContractRepository;
 import com.example.budget.service.RequestService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -35,16 +36,19 @@ public class RequestsView extends VerticalLayout {
     private final BoRepository boRepository;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
+    private final ContractRepository contractRepository;
 
     private final Grid<Request> grid = new Grid<>(Request.class, false);
 
     public RequestsView(RequestService requestService, BdzService bdzService,
-                        BoRepository boRepository, CfoRepository cfoRepository, MvzRepository mvzRepository) {
+                        BoRepository boRepository, CfoRepository cfoRepository,
+                        MvzRepository mvzRepository, ContractRepository contractRepository) {
         this.requestService = requestService;
         this.bdzService = bdzService;
         this.boRepository = boRepository;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
+        this.contractRepository = contractRepository;
 
         setSizeFull();
         buildGrid();
@@ -206,31 +210,7 @@ public class RequestsView extends VerticalLayout {
         Dialog d = new Dialog("Создание заявки");
         d.setWidth("900px");
 
-        // step 1
-        ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
-        bdz.setItems(bdzService.findAll());
-        bdz.setItemLabelGenerator(Bdz::getName);
-        ComboBox<Bo> bo = new ComboBox<>("БО");
-        bo.setItemLabelGenerator(Bo::getName);
-        TextField zgd = new TextField("ЗГД (автоподстановка)");
-        zgd.setReadOnly(true);
-        bdz.addValueChangeListener(e -> {
-            Bo selected = null;
-            if (e.getValue() != null) {
-                bo.setItems(boRepository.findByBdzId(e.getValue().getId()));
-                if (e.getValue().getZgd() != null) {
-                    zgd.setValue(e.getValue().getZgd().getFullName());
-                } else {
-                    zgd.setValue("");
-                }
-            } else {
-                bo.clear();
-                bo.setItems(List.of());
-                zgd.clear();
-            }
-        });
-
-        // step 2
+        // step 1: choose CFO and MVZ
         ComboBox<Cfo> cfo = new ComboBox<>("ЦФО");
         cfo.setItems(cfoRepository.findAll());
         cfo.setItemLabelGenerator(Cfo::getName);
@@ -245,7 +225,35 @@ public class RequestsView extends VerticalLayout {
             }
         });
 
-        // step 3
+        // step 2: choose BDZ and BO, auto-fill ZGD
+        ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
+        bdz.setItems(bdzService.findAll());
+        bdz.setItemLabelGenerator(Bdz::getName);
+        ComboBox<Bo> bo = new ComboBox<>("БО");
+        bo.setItemLabelGenerator(Bo::getName);
+        TextField zgd = new TextField("ЗГД (автоподстановка)");
+        zgd.setReadOnly(true);
+        bdz.addValueChangeListener(e -> {
+            if (e.getValue() != null) {
+                bo.setItems(boRepository.findByBdzId(e.getValue().getId()));
+                if (e.getValue().getZgd() != null) {
+                    zgd.setValue(e.getValue().getZgd().getFullName());
+                } else {
+                    zgd.setValue("");
+                }
+            } else {
+                bo.clear();
+                bo.setItems(List.of());
+                zgd.clear();
+            }
+        });
+
+        // step 3: choose Contract
+        ComboBox<Contract> contract = new ComboBox<>("Договор");
+        contract.setItems(contractRepository.findAll());
+        contract.setItemLabelGenerator(Contract::getName);
+
+        // step 4: remaining fields
         TextField vgo = new TextField("ВГО");
         NumberField amount = new NumberField("Сумма (млн)");
         NumberField amountNoVat = new NumberField("Без НДС (млн)");
@@ -255,28 +263,65 @@ public class RequestsView extends VerticalLayout {
         com.vaadin.flow.component.checkbox.Checkbox input = new com.vaadin.flow.component.checkbox.Checkbox("Вводный объект");
 
         // simple step control
-        Span step = new Span("Шаг 1 из 3");
-        VerticalLayout step1 = new VerticalLayout(bdz, bo, zgd);
-        VerticalLayout step2 = new VerticalLayout(cfo, mvz);
-        VerticalLayout step3 = new VerticalLayout(vgo, amount, amountNoVat, subject, period, pm, input);
+        Span step = new Span("Шаг 1 из 4");
+        VerticalLayout step1 = new VerticalLayout(cfo, mvz);
+        VerticalLayout step2 = new VerticalLayout(bdz, bo, zgd);
+        VerticalLayout step3 = new VerticalLayout(contract);
+        VerticalLayout step4 = new VerticalLayout(vgo, amount, amountNoVat, subject, period, pm, input);
         step2.setVisible(false);
         step3.setVisible(false);
+        step4.setVisible(false);
 
-        Button back = new Button("Назад", e -> {
-            if (step3.isVisible()) { step3.setVisible(false); step2.setVisible(true); step.setText("Шаг 2 из 3"); }
-            else if (step2.isVisible()) { step2.setVisible(false); step1.setVisible(true); step.setText("Шаг 1 из 3"); }
+        Button back = new Button("Назад");
+        Button next = new Button("Далее");
+        back.setEnabled(false);
+
+        back.addClickListener(e -> {
+            if (step4.isVisible()) {
+                step4.setVisible(false);
+                step3.setVisible(true);
+                step.setText("Шаг 3 из 4");
+                next.setEnabled(true);
+            } else if (step3.isVisible()) {
+                step3.setVisible(false);
+                step2.setVisible(true);
+                step.setText("Шаг 2 из 4");
+            } else if (step2.isVisible()) {
+                step2.setVisible(false);
+                step1.setVisible(true);
+                step.setText("Шаг 1 из 4");
+                back.setEnabled(false);
+            }
         });
-        Button next = new Button("Далее", e -> {
-            if (step1.isVisible()) { step1.setVisible(false); step2.setVisible(true); step.setText("Шаг 2 из 3"); }
-            else if (step2.isVisible()) { step2.setVisible(false); step3.setVisible(true); step.setText("Шаг 3 из 3"); }
+
+        next.addClickListener(e -> {
+            if (step1.isVisible()) {
+                step1.setVisible(false);
+                step2.setVisible(true);
+                step.setText("Шаг 2 из 4");
+                back.setEnabled(true);
+            } else if (step2.isVisible()) {
+                step2.setVisible(false);
+                step3.setVisible(true);
+                step.setText("Шаг 3 из 4");
+            } else if (step3.isVisible()) {
+                step3.setVisible(false);
+                step4.setVisible(true);
+                step.setText("Шаг 4 из 4");
+                next.setEnabled(false);
+            }
         });
+
         Button save = new Button("Сохранить", e -> {
             Request r = new Request();
-            r.setBdz(bdz.getValue());
-            r.setBo(bo.getValue());
-            if (bdz.getValue()!=null) r.setZgd(bdz.getValue().getZgd());
             r.setCfo(cfo.getValue());
             r.setMvz(mvz.getValue());
+            r.setBdz(bdz.getValue());
+            r.setBo(bo.getValue());
+            if (bdz.getValue() != null) {
+                r.setZgd(bdz.getValue().getZgd());
+            }
+            r.setContract(contract.getValue());
             r.setVgo(vgo.getValue());
             r.setAmount(amount.getValue() != null ? java.math.BigDecimal.valueOf(amount.getValue()) : null);
             r.setAmountNoVat(amountNoVat.getValue() != null ? java.math.BigDecimal.valueOf(amountNoVat.getValue()) : null);
@@ -290,7 +335,7 @@ public class RequestsView extends VerticalLayout {
         });
         Button close = new Button("Закрыть", e -> d.close());
 
-        d.add(step, step1, step2, step3, new HorizontalLayout(back, next, save, close));
+        d.add(step, step1, step2, step3, step4, new HorizontalLayout(back, next, save, close));
         d.open();
     }
 }
