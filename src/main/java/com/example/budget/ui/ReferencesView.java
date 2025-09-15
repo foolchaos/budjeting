@@ -3,6 +3,9 @@ package com.example.budget.ui;
 import com.example.budget.domain.*;
 import com.example.budget.repo.*;
 import com.example.budget.service.BdzService;
+import com.example.budget.service.BoService;
+import com.example.budget.service.ContractService;
+import com.example.budget.service.ZgdService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
@@ -17,38 +20,44 @@ import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.data.binder.Binder;
-import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 @Component
 @UIScope
 public class ReferencesView extends SplitLayout {
 
     private final BdzService bdzService;
-    private final BoRepository boRepository;
-    private final ZgdRepository zgdRepository;
+    private final BoService boService;
+    private final ZgdService zgdService;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
-    private final ContractRepository contractRepository;
+    private final ContractService contractService;
 
     private final ListBox<String> leftMenu = new ListBox<>();
     private final Div rightPanel = new Div();
 
-    public ReferencesView(BdzService bdzService, BoRepository boRepository, ZgdRepository zgdRepository,
+    public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
                           CfoRepository cfoRepository, MvzRepository mvzRepository,
-                          ContractRepository contractRepository) {
+                          ContractService contractService) {
         this.bdzService = bdzService;
-        this.boRepository = boRepository;
-        this.zgdRepository = zgdRepository;
+        this.boService = boService;
+        this.zgdService = zgdService;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
-        this.contractRepository = contractRepository;
+        this.contractService = contractService;
 
         setSizeFull();
         leftMenu.setItems("БДЗ", "БО", "ЗГД", "ЦФО", "МВЗ", "Договор");
@@ -58,7 +67,7 @@ public class ReferencesView extends SplitLayout {
         rightPanel.setSizeFull();
         setOrientation(SplitLayout.Orientation.HORIZONTAL);
         setSplitterPosition(20);
-addToPrimary(leftMenu);
+        addToPrimary(leftMenu);
         addToSecondary(rightPanel);
 
         renderRight("БДЗ");
@@ -85,34 +94,103 @@ addToPrimary(leftMenu);
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
 
         TreeGrid<Bdz> tree = new TreeGrid<>();
-        tree.addHierarchyColumn(Bdz::getName).setHeader("Наименование");
-        tree.addColumn(Bdz::getCode).setHeader("Код");
+        tree.addHierarchyColumn(Bdz::getCode).setHeader("Код");
+        tree.addColumn(Bdz::getName).setHeader("Наименование");
         tree.setSelectionMode(Grid.SelectionMode.MULTI);
         tree.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
-        refreshBdz(tree);
+        tree.setHeightFull();
+
+        Select<Integer> pageSizeSelect = new Select<>();
+        pageSizeSelect.setLabel("Строк на странице");
+        pageSizeSelect.setItems(5, 10, 25, 50);
+        pageSizeSelect.setValue(10);
+
+        Button prev = new Button("Назад");
+        Button next = new Button("Вперёд");
+        Span pageInfo = new Span();
+
+        List<Bdz> roots = new ArrayList<>();
+        final int[] currentPage = {0};
+
+        Runnable updatePage = () -> {
+            int pageSize = pageSizeSelect.getValue();
+            int total = roots.size();
+
+            if (total == 0) {
+                tree.setItems(Collections.emptyList(), b -> bdzService.findChildren(b.getId()));
+                pageInfo.setText("0 из 0");
+                prev.setEnabled(false);
+                next.setEnabled(false);
+                return;
+            }
+
+            int pageCount = (int) Math.ceil((double) total / pageSize);
+            if (currentPage[0] >= pageCount) {
+                currentPage[0] = Math.max(pageCount - 1, 0);
+            }
+
+            int from = currentPage[0] * pageSize;
+            int to = Math.min(from + pageSize, total);
+            tree.setItems(roots.subList(from, to), b -> bdzService.findChildren(b.getId()));
+            pageInfo.setText(String.format("%d–%d из %d", from + 1, to, total));
+
+            prev.setEnabled(currentPage[0] > 0);
+            next.setEnabled(currentPage[0] < pageCount - 1);
+        };
+
+        Runnable reload = () -> {
+            roots.clear();
+            roots.addAll(bdzService.findRoots());
+            currentPage[0] = 0;
+            updatePage.run();
+        };
+
+        pageSizeSelect.addValueChangeListener(e -> {
+            currentPage[0] = 0;
+            updatePage.run();
+        });
+
+        prev.addClickListener(e -> {
+            if (currentPage[0] > 0) {
+                currentPage[0]--;
+                updatePage.run();
+            }
+        });
+
+        next.addClickListener(e -> {
+            int pageSize = pageSizeSelect.getValue();
+            if ((currentPage[0] + 1) * pageSize < roots.size()) {
+                currentPage[0]++;
+                updatePage.run();
+            }
+        });
 
         // open details on item click
-        tree.addItemClickListener(ev -> openBdzCard(ev.getItem(), tree));
+        tree.addItemClickListener(ev -> openBdzCard(ev.getItem(), reload));
 
-        create.addClickListener(e -> openBdzCard(new Bdz(), tree));
+        create.addClickListener(e -> openBdzCard(new Bdz(), reload));
         delete.addClickListener(e -> {
             tree.getSelectedItems().forEach(item -> {
                 if (item.getId() != null) bdzService.deleteById(item.getId());
             });
-            refreshBdz(tree);
+            reload.run();
         });
 
-        layout.add(new HorizontalLayout(create, delete), tree);
+        HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
+        pagination.setAlignItems(Alignment.CENTER);
+        pagination.setWidthFull();
+        pageInfo.getStyle().set("margin-left", "auto");
+        pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
+
+        layout.add(new HorizontalLayout(create, delete), tree, pagination);
         layout.setFlexGrow(1, tree);
+        reload.run();
         return layout;
     }
 
-    private void refreshBdz(TreeGrid<Bdz> tree) {
-        java.util.List<Bdz> roots = bdzService.findRoots();
-        tree.setItems(roots, b -> bdzService.findChildren(b.getId()));
-    }
+    private void openBdzCard(Bdz entity, Runnable refresh) {
+        Bdz bean = entity.getId() != null ? bdzService.findById(entity.getId()) : entity;
 
-    private void openBdzCard(Bdz entity, TreeGrid<Bdz> tree) {
         Dialog dlg = new Dialog("Статья БДЗ");
         dlg.setWidth("500px");
         Binder<Bdz> binder = new Binder<>(Bdz.class);
@@ -120,24 +198,32 @@ addToPrimary(leftMenu);
         TextField code = new TextField("Код");
         TextField name = new TextField("Наименование");
         ComboBox<Bdz> parent = new ComboBox<>("Родитель");
-        parent.setItems(bdzService.findAll().stream().filter(b -> !Objects.equals(b.getId(), entity.getId())).toList());
+        java.util.List<Bdz> options = bdzService.findAll().stream()
+                .filter(b -> !Objects.equals(b.getId(), bean.getId()))
+                .toList();
+        parent.setItems(options);
         parent.setItemLabelGenerator(Bdz::getName);
+        if (bean.getParent() != null) {
+            Long pid = bean.getParent().getId();
+            bean.setParent(options.stream()
+                    .filter(b -> Objects.equals(b.getId(), pid))
+                    .findFirst().orElse(null));
+        }
 
         binder.bind(code, Bdz::getCode, Bdz::setCode);
         binder.bind(name, Bdz::getName, Bdz::setName);
         binder.bind(parent, Bdz::getParent, Bdz::setParent);
-        binder.setBean(entity);
+        binder.setBean(bean);
 
         Button save = new Button("Сохранить", e -> {
             bdzService.save(binder.getBean());
-            refreshBdz(tree);
+            refresh.run();
             dlg.close();
         });
-        Button edit = new Button("Редактировать"); // форма редактируемая по умолчанию
         Button delete = new Button("Удалить", e -> {
-            if (entity.getId() != null) {
-                bdzService.deleteById(entity.getId());
-                refreshBdz(tree);
+            if (bean.getId() != null) {
+                bdzService.deleteById(bean.getId());
+                refresh.run();
             }
             dlg.close();
         });
@@ -151,32 +237,102 @@ addToPrimary(leftMenu);
 
     // ==== Generic helpers for other refs ====
     private <T> VerticalLayout genericGrid(Class<T> type, Grid<T> grid,
-                                           java.util.function.Supplier<List<T>> loader,
+                                           Supplier<List<T>> loader,
                                            java.util.function.Function<T, T> saver,
                                            java.util.function.Consumer<T> deleter,
-                                           java.util.function.Function<T, Dialog> editorFactory) {
+                                           BiFunction<T, Runnable, Dialog> editorFactory) {
         VerticalLayout layout = new VerticalLayout();
         layout.setSizeFull();
         Button create = new Button("Создать");
         Button delete = new Button("Удалить выбранные");
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
-
-        ListDataProvider<T> provider = new ListDataProvider<>(loader.get());
-        grid.setItems(provider);
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
         grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
-        grid.addItemClickListener(e -> editorFactory.apply(e.getItem()).open());
+        grid.setHeightFull();
 
-        create.addClickListener(e -> editorFactory.apply(null).open());
-        delete.addClickListener(e -> {
-            grid.getSelectedItems().forEach(deleter);
-            provider.getItems().clear();
-            provider.getItems().addAll(loader.get());
-            provider.refreshAll();
+        Select<Integer> pageSizeSelect = new Select<>();
+        pageSizeSelect.setLabel("Строк на странице");
+        pageSizeSelect.setItems(5, 10, 25, 50);
+        pageSizeSelect.setValue(10);
+
+        Button prev = new Button("Назад");
+        Button next = new Button("Вперёд");
+        Span pageInfo = new Span();
+
+        List<T> items = new ArrayList<>();
+        final int[] currentPage = {0};
+
+        Runnable updatePage = () -> {
+            int pageSize = pageSizeSelect.getValue();
+            int total = items.size();
+
+            if (total == 0) {
+                grid.setItems(List.of());
+                pageInfo.setText("0 из 0");
+                prev.setEnabled(false);
+                next.setEnabled(false);
+                return;
+            }
+
+            int pageCount = (int) Math.ceil((double) total / pageSize);
+            if (currentPage[0] >= pageCount) {
+                currentPage[0] = Math.max(pageCount - 1, 0);
+            }
+
+            int from = currentPage[0] * pageSize;
+            int to = Math.min(from + pageSize, total);
+            grid.setItems(items.subList(from, to));
+            pageInfo.setText(String.format("%d–%d из %d", from + 1, to, total));
+
+            prev.setEnabled(currentPage[0] > 0);
+            next.setEnabled(currentPage[0] < pageCount - 1);
+        };
+
+        Runnable refresh = () -> {
+            items.clear();
+            items.addAll(loader.get());
+            currentPage[0] = 0;
+            grid.deselectAll();
+            updatePage.run();
+        };
+
+        pageSizeSelect.addValueChangeListener(e -> {
+            currentPage[0] = 0;
+            updatePage.run();
         });
 
-        layout.add(new HorizontalLayout(create, delete), grid);
+        prev.addClickListener(e -> {
+            if (currentPage[0] > 0) {
+                currentPage[0]--;
+                updatePage.run();
+            }
+        });
+
+        next.addClickListener(e -> {
+            int pageSize = pageSizeSelect.getValue();
+            if ((currentPage[0] + 1) * pageSize < items.size()) {
+                currentPage[0]++;
+                updatePage.run();
+            }
+        });
+
+        grid.addItemClickListener(e -> editorFactory.apply(e.getItem(), refresh).open());
+        create.addClickListener(e -> editorFactory.apply(null, refresh).open());
+        delete.addClickListener(e -> {
+            grid.getSelectedItems().forEach(deleter);
+            refresh.run();
+        });
+
+        HorizontalLayout actions = new HorizontalLayout(create, delete);
+        HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
+        pagination.setAlignItems(Alignment.CENTER);
+        pagination.setWidthFull();
+        pageInfo.getStyle().set("margin-left", "auto");
+        pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
+
+        layout.add(actions, grid, pagination);
         layout.setFlexGrow(1, grid);
+        refresh.run();
         return layout;
     }
 
@@ -187,10 +343,10 @@ addToPrimary(leftMenu);
         grid.addColumn(item -> item.getBdz() != null ? item.getBdz().getName() : "—").setHeader("БДЗ");
 
         return genericGrid(Bo.class, grid,
-                () -> boRepository.findAll(),
-                boRepository::save,
-                boRepository::delete,
-                selected -> {
+                boService::findAll,
+                boService::save,
+                boService::delete,
+                (selected, refresh) -> {
                     Bo bean = selected != null ? selected : new Bo();
                     Dialog d = new Dialog("Статья БО");
                     Binder<Bo> binder = new Binder<>(Bo.class);
@@ -203,8 +359,8 @@ addToPrimary(leftMenu);
                     binder.bind(name, Bo::getName, Bo::setName);
                     binder.bind(bdz, Bo::getBdz, Bo::setBdz);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { boRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) boRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { boService.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) boService.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name, bdz), new HorizontalLayout(save, del, close));
@@ -219,10 +375,10 @@ addToPrimary(leftMenu);
         grid.addColumn(item -> item.getBdz() != null ? item.getBdz().getName() : "—").setHeader("БДЗ");
 
         return genericGrid(Zgd.class, grid,
-                () -> zgdRepository.findAll(),
-                zgdRepository::save,
-                zgdRepository::delete,
-                selected -> {
+                zgdService::findAll,
+                zgdService::save,
+                zgdService::delete,
+                (selected, refresh) -> {
                     Zgd bean = selected != null ? selected : new Zgd();
                     Dialog d = new Dialog("Курирующий ЗГД");
                     Binder<Zgd> binder = new Binder<>(Zgd.class);
@@ -237,8 +393,8 @@ addToPrimary(leftMenu);
                     binder.bind(bdz, Zgd::getBdz, Zgd::setBdz);
                     binder.setBean(bean);
 
-                    Button save = new Button("Сохранить", e -> { zgdRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) zgdRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { zgdService.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) zgdService.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(fio, dep, bdz), new HorizontalLayout(save, del, close));
@@ -255,7 +411,7 @@ addToPrimary(leftMenu);
                 () -> cfoRepository.findAll(),
                 cfoRepository::save,
                 cfoRepository::delete,
-                selected -> {
+                (selected, refresh) -> {
                     Cfo bean = selected != null ? selected : new Cfo();
                     Dialog d = new Dialog("ЦФО");
                     Binder<Cfo> binder = new Binder<>(Cfo.class);
@@ -264,8 +420,8 @@ addToPrimary(leftMenu);
                     binder.bind(code, Cfo::getCode, Cfo::setCode);
                     binder.bind(name, Cfo::getName, Cfo::setName);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { cfoRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) cfoRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { cfoRepository.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) cfoRepository.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name), new HorizontalLayout(save, del, close));
@@ -283,7 +439,7 @@ addToPrimary(leftMenu);
                 () -> mvzRepository.findAll(),
                 mvzRepository::save,
                 mvzRepository::delete,
-                selected -> {
+                (selected, refresh) -> {
                     Mvz bean = selected != null ? selected : new Mvz();
                     Dialog d = new Dialog("МВЗ");
                     Binder<Mvz> binder = new Binder<>(Mvz.class);
@@ -296,8 +452,8 @@ addToPrimary(leftMenu);
                     binder.bind(name, Mvz::getName, Mvz::setName);
                     binder.bind(cfo, Mvz::getCfo, Mvz::setCfo);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { mvzRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) mvzRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { mvzRepository.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) mvzRepository.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name, cfo), new HorizontalLayout(save, del, close));
@@ -314,38 +470,36 @@ addToPrimary(leftMenu);
         grid.addColumn(Contract::getResponsible).setHeader("Ответственный");
 
         return genericGrid(Contract.class, grid,
-                () -> contractRepository.findAll(),
-                contractRepository::save,
-                contractRepository::delete,
-                selected -> {
+                contractService::findAll,
+                contractService::save,
+                contractService::delete,
+                (selected, refresh) -> {
                     Contract bean = selected != null ? selected : new Contract();
                     Dialog d = new Dialog("Договор");
                     Binder<Contract> binder = new Binder<>(Contract.class);
                     TextField name = new TextField("Наименование");
                     TextField inum = new TextField("№ внутренний");
                     TextField exnum = new TextField("№ внешний");
-                    TextField date = new TextField("Дата (YYYY-MM-DD)");
+                    DatePicker date = new DatePicker("Дата");
                     TextField resp = new TextField("Ответственный (ФИО)");
+
+                    if (bean.getContractDate() != null) {
+                        date.setValue(bean.getContractDate());
+                    }
 
                     binder.forField(name).bind(Contract::getName, Contract::setName);
                     binder.bind(inum, Contract::getInternalNumber, Contract::setInternalNumber);
                     binder.bind(exnum, Contract::getExternalNumber, Contract::setExternalNumber);
+                    binder.bind(date, Contract::getContractDate, Contract::setContractDate);
                     binder.bind(resp, Contract::getResponsible, Contract::setResponsible);
                     binder.setBean(bean);
 
                     Button save = new Button("Сохранить", e -> {
-                        try {
-                            if (date.getValue() != null && !date.getValue().isBlank()) {
-                                bean.setContractDate(java.time.LocalDate.parse(date.getValue()));
-                            }
-                            contractRepository.save(bean);
-                            d.close();
-                        } catch (Exception ex) {
-                            date.setInvalid(true);
-                            date.setErrorMessage("Неверный формат даты");
-                        }
+                        contractService.save(binder.getBean());
+                        refresh.run();
+                        d.close();
                     });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractRepository.delete(bean); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractService.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(name, inum, exnum, date, resp), new HorizontalLayout(save, del, close));

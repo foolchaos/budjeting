@@ -1,12 +1,9 @@
 package com.example.budget.ui;
 
-import com.vaadin.flow.component.dependency.CssImport;
-import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.component.orderedlayout.FlexLayout;
 
 @Route("")
 public class MainView extends VerticalLayout {
@@ -23,7 +20,9 @@ public class MainView extends VerticalLayout {
         this.requestsView = requestsView;
 
         setSizeFull();
-        add(new H1("Бюджет: доходы и затраты"));
+        setPadding(false);
+        setSpacing(false);
+        setMargin(false);
         tabs.setWidthFull();
         add(tabs);
 

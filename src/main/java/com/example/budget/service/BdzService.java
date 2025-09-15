@@ -4,6 +4,7 @@ import com.example.budget.domain.Bdz;
 import com.example.budget.domain.Request;
 import com.example.budget.repo.BdzRepository;
 import com.example.budget.repo.RequestRepository;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,10 +20,48 @@ public class BdzService {
         this.requestRepository = requestRepository;
     }
 
-    public List<Bdz> findAll() { return bdzRepository.findAll(); }
+    @Transactional(readOnly = true)
+    public List<Bdz> findAll() {
+        List<Bdz> list = bdzRepository.findAll();
+        list.forEach(b -> {
+            Hibernate.initialize(b);
+            if (b.getParent() != null) {
+                Hibernate.initialize(b.getParent());
+            }
+        });
+        return list;
+    }
 
-    public java.util.List<Bdz> findRoots() { return bdzRepository.findByParentIsNull(); }
-    public java.util.List<Bdz> findChildren(Long parentId) { return bdzRepository.findByParentId(parentId); }
+    @Transactional(readOnly = true)
+    public java.util.List<Bdz> findRoots() {
+        List<Bdz> list = bdzRepository.findByParentIsNull();
+        list.forEach(Hibernate::initialize);
+        return list;
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<Bdz> findChildren(Long parentId) {
+        List<Bdz> list = bdzRepository.findByParentId(parentId);
+        list.forEach(b -> {
+            Hibernate.initialize(b);
+            if (b.getParent() != null) {
+                Hibernate.initialize(b.getParent());
+            }
+        });
+        return list;
+    }
+
+    @Transactional(readOnly = true)
+    public Bdz findById(Long id) {
+        Bdz bdz = bdzRepository.findById(id).orElse(null);
+        if (bdz != null) {
+            Hibernate.initialize(bdz);
+            if (bdz.getParent() != null) {
+                Hibernate.initialize(bdz.getParent());
+            }
+        }
+        return bdz;
+    }
 
     public Bdz save(Bdz bdz) { return bdzRepository.save(bdz); }
 
