@@ -113,6 +113,10 @@ public class ReferencesView extends SplitLayout {
     }
 
     private void openBdzCard(Bdz entity, TreeGrid<Bdz> tree) {
+        if (entity.getId() != null) {
+            entity = bdzService.findById(entity.getId());
+        }
+
         Dialog dlg = new Dialog("Статья БДЗ");
         dlg.setWidth("500px");
         Binder<Bdz> binder = new Binder<>(Bdz.class);
@@ -120,8 +124,17 @@ public class ReferencesView extends SplitLayout {
         TextField code = new TextField("Код");
         TextField name = new TextField("Наименование");
         ComboBox<Bdz> parent = new ComboBox<>("Родитель");
-        parent.setItems(bdzService.findAll().stream().filter(b -> !Objects.equals(b.getId(), entity.getId())).toList());
+        java.util.List<Bdz> options = bdzService.findAll().stream()
+                .filter(b -> !Objects.equals(b.getId(), entity.getId()))
+                .toList();
+        parent.setItems(options);
         parent.setItemLabelGenerator(Bdz::getName);
+        if (entity.getParent() != null) {
+            Long pid = entity.getParent().getId();
+            entity.setParent(options.stream()
+                    .filter(b -> Objects.equals(b.getId(), pid))
+                    .findFirst().orElse(null));
+        }
 
         binder.bind(code, Bdz::getCode, Bdz::setCode);
         binder.bind(name, Bdz::getName, Bdz::setName);

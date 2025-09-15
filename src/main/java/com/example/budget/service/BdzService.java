@@ -23,7 +23,12 @@ public class BdzService {
     @Transactional(readOnly = true)
     public List<Bdz> findAll() {
         List<Bdz> list = bdzRepository.findAll();
-        list.forEach(Hibernate::initialize);
+        list.forEach(b -> {
+            Hibernate.initialize(b);
+            if (b.getParent() != null) {
+                Hibernate.initialize(b.getParent());
+            }
+        });
         return list;
     }
 
@@ -37,8 +42,25 @@ public class BdzService {
     @Transactional(readOnly = true)
     public java.util.List<Bdz> findChildren(Long parentId) {
         List<Bdz> list = bdzRepository.findByParentId(parentId);
-        list.forEach(Hibernate::initialize);
+        list.forEach(b -> {
+            Hibernate.initialize(b);
+            if (b.getParent() != null) {
+                Hibernate.initialize(b.getParent());
+            }
+        });
         return list;
+    }
+
+    @Transactional(readOnly = true)
+    public Bdz findById(Long id) {
+        Bdz bdz = bdzRepository.findById(id).orElse(null);
+        if (bdz != null) {
+            Hibernate.initialize(bdz);
+            if (bdz.getParent() != null) {
+                Hibernate.initialize(bdz.getParent());
+            }
+        }
+        return bdz;
     }
 
     public Bdz save(Bdz bdz) { return bdzRepository.save(bdz); }
