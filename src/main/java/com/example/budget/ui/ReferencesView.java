@@ -85,8 +85,8 @@ public class ReferencesView extends SplitLayout {
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
 
         TreeGrid<Bdz> tree = new TreeGrid<>();
-        tree.addHierarchyColumn(Bdz::getName).setHeader("Наименование");
-        tree.addColumn(Bdz::getCode).setHeader("Код");
+        tree.addHierarchyColumn(Bdz::getCode).setHeader("Код");
+        tree.addColumn(Bdz::getName).setHeader("Наименование");
         tree.setSelectionMode(Grid.SelectionMode.MULTI);
         tree.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
         refreshBdz(tree);
