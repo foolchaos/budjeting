@@ -19,10 +19,26 @@ public class BdzService {
         this.requestRepository = requestRepository;
     }
 
-    public List<Bdz> findAll() { return bdzRepository.findAll(); }
+    @Transactional(readOnly = true)
+    public List<Bdz> findAll() {
+        List<Bdz> list = bdzRepository.findAll();
+        list.forEach(b -> b.getName());
+        return list;
+    }
 
-    public java.util.List<Bdz> findRoots() { return bdzRepository.findByParentIsNull(); }
-    public java.util.List<Bdz> findChildren(Long parentId) { return bdzRepository.findByParentId(parentId); }
+    @Transactional(readOnly = true)
+    public java.util.List<Bdz> findRoots() {
+        List<Bdz> list = bdzRepository.findByParentIsNull();
+        list.forEach(b -> b.getName());
+        return list;
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<Bdz> findChildren(Long parentId) {
+        List<Bdz> list = bdzRepository.findByParentId(parentId);
+        list.forEach(b -> b.getName());
+        return list;
+    }
 
     public Bdz save(Bdz bdz) { return bdzRepository.save(bdz); }
 

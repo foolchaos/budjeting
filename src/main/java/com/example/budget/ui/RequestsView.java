@@ -1,7 +1,7 @@
 package com.example.budget.ui;
 
 import com.example.budget.domain.*;
-import com.example.budget.repo.BdzRepository;
+import com.example.budget.service.BdzService;
 import com.example.budget.repo.BoRepository;
 import com.example.budget.repo.CfoRepository;
 import com.example.budget.repo.MvzRepository;
@@ -31,17 +31,17 @@ import java.util.Objects;
 public class RequestsView extends VerticalLayout {
 
     private final RequestService requestService;
-    private final BdzRepository bdzRepository;
+    private final BdzService bdzService;
     private final BoRepository boRepository;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
 
     private final Grid<Request> grid = new Grid<>(Request.class, false);
 
-    public RequestsView(RequestService requestService, BdzRepository bdzRepository,
+    public RequestsView(RequestService requestService, BdzService bdzService,
                         BoRepository boRepository, CfoRepository cfoRepository, MvzRepository mvzRepository) {
         this.requestService = requestService;
-        this.bdzRepository = bdzRepository;
+        this.bdzService = bdzService;
         this.boRepository = boRepository;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
@@ -208,7 +208,7 @@ public class RequestsView extends VerticalLayout {
 
         // step 1
         ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
-        bdz.setItems(bdzRepository.findAll());
+        bdz.setItems(bdzService.findAll());
         bdz.setItemLabelGenerator(Bdz::getName);
         ComboBox<Bo> bo = new ComboBox<>("БО");
         bo.setItemLabelGenerator(Bo::getName);
