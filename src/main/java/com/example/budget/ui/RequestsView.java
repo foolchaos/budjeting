@@ -48,6 +48,8 @@ public class RequestsView extends VerticalLayout {
         this.mvzRepository = mvzRepository;
 
         setSizeFull();
+        setPadding(false);
+        setSpacing(false);
         buildGrid();
 
         Button create = new Button("Создать");
@@ -60,8 +62,9 @@ public class RequestsView extends VerticalLayout {
         });
 
         Div gridWrapper = new Div(grid);
-        gridWrapper.setWidthFull();
+        gridWrapper.setSizeFull();
         gridWrapper.getStyle().set("overflow", "auto");
+        grid.setSizeFull();
 
         add(new HorizontalLayout(create, delete), gridWrapper);
         setFlexGrow(1, gridWrapper);
