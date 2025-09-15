@@ -35,6 +35,9 @@ public class RequestService {
         List<Request> list = requestRepository.findAll();
         list.forEach(r -> {
             if (r.getBdz() != null) Hibernate.initialize(r.getBdz());
+            if (r.getBdz() != null && r.getBdz().getParent() != null) {
+                Hibernate.initialize(r.getBdz().getParent());
+            }
             if (r.getBo() != null) Hibernate.initialize(r.getBo());
             if (r.getCfo() != null) Hibernate.initialize(r.getCfo());
             if (r.getMvz() != null) Hibernate.initialize(r.getMvz());
@@ -42,6 +45,34 @@ public class RequestService {
             if (r.getZgd() != null) Hibernate.initialize(r.getZgd());
         });
         return list;
+    }
+
+    @Transactional(readOnly = true)
+    public Request findDetailedById(Long id) {
+        Request request = requestRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Request not found: " + id));
+        if (request.getBdz() != null) {
+            Hibernate.initialize(request.getBdz());
+            if (request.getBdz().getParent() != null) {
+                Hibernate.initialize(request.getBdz().getParent());
+            }
+        }
+        if (request.getBo() != null) {
+            Hibernate.initialize(request.getBo());
+        }
+        if (request.getCfo() != null) {
+            Hibernate.initialize(request.getCfo());
+        }
+        if (request.getMvz() != null) {
+            Hibernate.initialize(request.getMvz());
+        }
+        if (request.getContract() != null) {
+            Hibernate.initialize(request.getContract());
+        }
+        if (request.getZgd() != null) {
+            Hibernate.initialize(request.getZgd());
+        }
+        return request;
     }
     @Transactional
     public Request save(Request r) {

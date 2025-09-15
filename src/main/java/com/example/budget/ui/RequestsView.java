@@ -7,8 +7,10 @@ import com.example.budget.repo.CfoRepository;
 import com.example.budget.repo.MvzRepository;
 import com.example.budget.repo.ContractRepository;
 import com.example.budget.service.RequestService;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
@@ -18,6 +20,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
@@ -25,11 +28,15 @@ import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.Month;
+import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
@@ -44,6 +51,7 @@ public class RequestsView extends VerticalLayout {
     private final ContractRepository contractRepository;
 
     private final Grid<Request> grid = new Grid<>(Request.class, false);
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     public RequestsView(RequestService requestService, BdzService bdzService,
                         BoRepository boRepository, CfoRepository cfoRepository,
@@ -140,189 +148,262 @@ public class RequestsView extends VerticalLayout {
     }
 
     private void openCard(Request entity) {
-        Dialog d = new Dialog("Заявка № " + entity.getNumber());
+        Request detailed = requestService.findDetailedById(entity.getId());
+        Dialog d = new Dialog("Заявка № " + detailed.getNumber());
         d.setWidth("900px");
 
-        TextField bdzt = new TextField("БДЗ");
-        bdzt.setValue(entity.getBdz()!=null ? entity.getBdz().getName() : "");
-        bdzt.setReadOnly(true);
-        TextField bot = new TextField("БО");
-        bot.setValue(entity.getBo()!=null ? entity.getBo().getName() : "");
-        bot.setReadOnly(true);
-        TextField zgd = new TextField("ЗГД (из БДЗ)");
-        zgd.setValue(entity.getZgd()!=null ? entity.getZgd().getFullName() : "");
-        zgd.setReadOnly(true);
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.setWidthFull();
+        content.getStyle().set("max-height", "70vh");
+        content.getStyle().set("overflow", "auto");
 
-        TextField cfot = new TextField("ЦФО");
-        cfot.setValue(entity.getCfo()!=null ? entity.getCfo().getName() : "");
-        cfot.setReadOnly(true);
-        TextField mvzt = new TextField("МВЗ");
-        mvzt.setValue(entity.getMvz()!=null ? entity.getMvz().getName() : "");
-        mvzt.setReadOnly(true);
+        content.add(
+                infoSection("Основная информация",
+                        entry("Номер заявки", detailed.getNumber()),
+                        entry("Период (месяц)", detailed.getPeriod()),
+                        entry("ВГО", detailed.getVgo()),
+                        entry("Предмет договора", detailed.getSubject()),
+                        entry("Способ закупки", detailed.getProcurementMethod()),
+                        entry("Сумма (млн)", detailed.getAmount()),
+                        entry("Сумма без НДС (млн)", detailed.getAmountNoVat()),
+                        entry("Вводный объект", detailed.isInputObject())
+                ),
+                infoSection("ЦФО и МВЗ",
+                        entry("Код ЦФО", detailed.getCfo() != null ? detailed.getCfo().getCode() : null),
+                        entry("Наименование ЦФО", detailed.getCfo() != null ? detailed.getCfo().getName() : null),
+                        entry("Код МВЗ", detailed.getMvz() != null ? detailed.getMvz().getCode() : null),
+                        entry("Наименование МВЗ", detailed.getMvz() != null ? detailed.getMvz().getName() : null)
+                ),
+                infoSection("БДЗ и БО",
+                        entry("Код БДЗ", detailed.getBdz() != null ? detailed.getBdz().getCode() : null),
+                        entry("Наименование БДЗ", detailed.getBdz() != null ? detailed.getBdz().getName() : null),
+                        entry("Код родительского БДЗ", detailed.getBdz() != null && detailed.getBdz().getParent() != null ? detailed.getBdz().getParent().getCode() : null),
+                        entry("Наименование родительского БДЗ", detailed.getBdz() != null && detailed.getBdz().getParent() != null ? detailed.getBdz().getParent().getName() : null),
+                        entry("Код БО", detailed.getBo() != null ? detailed.getBo().getCode() : null),
+                        entry("Наименование БО", detailed.getBo() != null ? detailed.getBo().getName() : null)
+                ),
+                infoSection("ЗГД",
+                        entry("ФИО", detailed.getZgd() != null ? detailed.getZgd().getFullName() : null),
+                        entry("Подразделение", detailed.getZgd() != null ? detailed.getZgd().getDepartment() : null)
+                ),
+                infoSection("Договор",
+                        entry("Наименование", detailed.getContract() != null ? detailed.getContract().getName() : null),
+                        entry("Внутренний номер", detailed.getContract() != null ? detailed.getContract().getInternalNumber() : null),
+                        entry("Внешний номер", detailed.getContract() != null ? detailed.getContract().getExternalNumber() : null),
+                        entry("Дата договора", detailed.getContract() != null ? detailed.getContract().getContractDate() : null),
+                        entry("Ответственный", detailed.getContract() != null ? detailed.getContract().getResponsible() : null)
+                )
+        );
 
-        TextField vgo = new TextField("ВГО"); vgo.setValue(entity.getVgo()==null? "" : entity.getVgo()); vgo.setReadOnly(true);
-        TextField amount = new TextField("Сумма (млн)"); amount.setValue(entity.getAmount()!=null? entity.getAmount().toPlainString():""); amount.setReadOnly(true);
-        TextField amountNoVat = new TextField("Сумма без НДС (млн)"); amountNoVat.setValue(entity.getAmountNoVat()!=null? entity.getAmountNoVat().toPlainString():""); amountNoVat.setReadOnly(true);
-        TextField subject = new TextField("Предмет договора"); subject.setValue(entity.getSubject()==null? "" : entity.getSubject()); subject.setReadOnly(true);
-        TextField period = new TextField("Период (месяц)"); period.setValue(entity.getPeriod()==null? "" : entity.getPeriod()); period.setReadOnly(true);
-        TextField input = new TextField("Вводный объект"); input.setValue(entity.isInputObject()? "Да":"Нет"); input.setReadOnly(true);
-        TextField pm = new TextField("Способ закупки"); pm.setValue(entity.getProcurementMethod()==null? "" : entity.getProcurementMethod()); pm.setReadOnly(true);
-
-        Button edit = new Button("Редактировать", e -> { d.close(); openEdit(entity);});
-        Button del = new Button("Удалить", e -> { requestService.deleteById(entity.getId()); d.close(); reload(); });
+        Button edit = new Button("Редактировать", e -> {
+            d.close();
+            openEdit(entity);
+        });
+        Button del = new Button("Удалить", e -> {
+            requestService.deleteById(detailed.getId());
+            d.close();
+            reload();
+        });
         del.addThemeVariants(ButtonVariant.LUMO_ERROR);
         Button close = new Button("Закрыть", e -> d.close());
 
-        d.add(new FormLayout(bdzt, bot, zgd, cfot, mvzt, vgo, amount, amountNoVat, subject, period, input, pm),
-                new HorizontalLayout(edit, del, close));
+        HorizontalLayout actions = new HorizontalLayout(edit, del, close);
+        actions.setSpacing(true);
+        actions.setPadding(false);
+        actions.setWidthFull();
+        actions.setJustifyContentMode(JustifyContentMode.END);
+
+        d.add(content, actions);
         d.open();
     }
 
     private void openEdit(Request entity) {
-        Dialog d = new Dialog("Редактирование заявки № " + entity.getNumber());
-        d.setWidth("900px");
-        Binder<Request> binder = new Binder<>(Request.class);
-        binder.setBean(entity);
-
-        TextField vgo = new TextField("ВГО");
-        vgo.setWidthFull();
-        NumberField amount = new NumberField("Сумма (млн)");
-        amount.setWidthFull();
-        NumberField amountNoVat = new NumberField("Сумма без НДС (млн)");
-        amountNoVat.setWidthFull();
-        TextField subject = new TextField("Предмет договора");
-        subject.setWidthFull();
-        ComboBox<String> period = new ComboBox<>("Период (месяц)");
-        period.setItems(monthOptions());
-        period.setAllowCustomValue(false);
-        period.setWidthFull();
-        TextField pm = new TextField("Способ закупки");
-        pm.setWidthFull();
-        com.vaadin.flow.component.checkbox.Checkbox input = new com.vaadin.flow.component.checkbox.Checkbox("Вводный объект");
-        input.setWidthFull();
-
-        binder.bind(vgo, Request::getVgo, Request::setVgo);
-        binder.forField(amount).bind(
-                r -> r.getAmount() != null ? r.getAmount().doubleValue() : null,
-                (r, v) -> r.setAmount(v != null ? new BigDecimal(v) : null));
-        binder.forField(amountNoVat).bind(
-                r -> r.getAmountNoVat() != null ? r.getAmountNoVat().doubleValue() : null,
-                (r, v) -> r.setAmountNoVat(v != null ? new BigDecimal(v) : null));
-        binder.bind(subject, Request::getSubject, Request::setSubject);
-        binder.bind(period, Request::getPeriod, Request::setPeriod);
-        binder.bind(pm, Request::getProcurementMethod, Request::setProcurementMethod);
-        binder.bind(input, Request::isInputObject, Request::setInputObject);
-
-        Button save = new Button("Сохранить", e -> { requestService.save(binder.getBean()); d.close(); reload(); });
-        Button close = new Button("Закрыть", e -> d.close());
-        d.add(new FormLayout(vgo, amount, amountNoVat, subject, period, pm, input), new HorizontalLayout(save, close));
-        d.open();
+        openWizard(requestService.findDetailedById(entity.getId()), true);
     }
 
-    // === Wizard ===
     private void openWizard() {
-        Dialog d = new Dialog("Создание заявки");
+        openWizard(new Request(), false);
+    }
+
+    private void openWizard(Request bean, boolean editing) {
+        Dialog d = new Dialog(editing ? "Редактирование заявки № " + bean.getNumber() : "Создание заявки");
         d.setWidth("600px");
 
-        // step 1: choose CFO and MVZ
+        Binder<Request> binder = new Binder<>(Request.class);
+
         ComboBox<Cfo> cfo = new ComboBox<>("ЦФО");
-        cfo.setItems(cfoRepository.findAll());
-        cfo.setItemLabelGenerator(Cfo::getName);
-        cfo.setWidthFull();
-        ComboBox<Mvz> mvz = new ComboBox<>("МВЗ");
-        mvz.setItemLabelGenerator(Mvz::getName);
-        mvz.setWidthFull();
-        cfo.addValueChangeListener(e -> {
-            if (e.getValue() != null) {
-                mvz.setItems(mvzRepository.findByCfoId(e.getValue().getId()));
+        List<Cfo> cfoItems = new ArrayList<>(cfoRepository.findAll());
+        if (bean.getCfo() != null) {
+            Cfo selectedCfo = findById(cfoItems, Cfo::getId, bean.getCfo().getId());
+            if (selectedCfo != null) {
+                bean.setCfo(selectedCfo);
             } else {
-                mvz.clear();
-                mvz.setItems(List.of());
+                cfoItems.add(bean.getCfo());
+            }
+        }
+        cfo.setItems(cfoItems);
+        cfo.setItemLabelGenerator(c -> formatCodeName(c.getCode(), c.getName()));
+        cfo.setWidthFull();
+        cfo.setClearButtonVisible(true);
+
+        ComboBox<Mvz> mvz = new ComboBox<>("МВЗ");
+        mvz.setItemLabelGenerator(m -> formatCodeName(m.getCode(), m.getName()));
+        mvz.setWidthFull();
+        mvz.setClearButtonVisible(true);
+
+        cfo.addValueChangeListener(e -> {
+            List<Mvz> options = e.getValue() != null ? mvzRepository.findByCfoId(e.getValue().getId()) : List.of();
+            mvz.setItems(options);
+            if (mvz.getValue() != null) {
+                Long currentId = mvz.getValue().getId();
+                boolean present = options.stream().anyMatch(item -> item.getId().equals(currentId));
+                if (!present) {
+                    mvz.clear();
+                }
             }
         });
 
-        // step 2: choose BDZ and BO, auto-fill ZGD
+        binder.forField(cfo).bind(Request::getCfo, Request::setCfo);
+        binder.forField(mvz).bind(Request::getMvz, Request::setMvz);
+
         ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
-        bdz.setItems(bdzService.findAll());
-        bdz.setItemLabelGenerator(Bdz::getName);
+        List<Bdz> bdzItems = new ArrayList<>(bdzService.findAll());
+        if (bean.getBdz() != null) {
+            Bdz selectedBdz = findById(bdzItems, Bdz::getId, bean.getBdz().getId());
+            if (selectedBdz != null) {
+                bean.setBdz(selectedBdz);
+            } else {
+                bdzItems.add(bean.getBdz());
+            }
+        }
+        bdz.setItems(bdzItems);
+        bdz.setItemLabelGenerator(b -> formatCodeName(b.getCode(), b.getName()));
         bdz.setWidthFull();
+        bdz.setClearButtonVisible(true);
+
         ComboBox<Bo> bo = new ComboBox<>("БО");
-        bo.setItemLabelGenerator(Bo::getName);
+        bo.setItemLabelGenerator(b -> formatCodeName(b.getCode(), b.getName()));
         bo.setWidthFull();
+        bo.setClearButtonVisible(true);
+
         TextField zgd = new TextField("ЗГД (автоподстановка)");
         zgd.setReadOnly(true);
         zgd.setWidthFull();
+
         bdz.addValueChangeListener(e -> {
-            if (e.getValue() != null) {
-                bo.setItems(boRepository.findByBdzId(e.getValue().getId()));
-                if (e.getValue().getZgd() != null) {
-                    zgd.setValue(e.getValue().getZgd().getFullName());
-                } else {
-                    zgd.setValue("");
+            List<Bo> options = e.getValue() != null ? boRepository.findByBdzId(e.getValue().getId()) : List.of();
+            bo.setItems(options);
+            if (bo.getValue() != null) {
+                Long currentId = bo.getValue().getId();
+                boolean present = options.stream().anyMatch(item -> item.getId().equals(currentId));
+                if (!present) {
+                    bo.clear();
                 }
-            } else {
-                bo.clear();
-                bo.setItems(List.of());
-                zgd.clear();
             }
+            Request current = binder.getBean();
+            if (current != null) {
+                current.setZgd(e.getValue() != null ? e.getValue().getZgd() : null);
+            }
+            zgd.setValue(e.getValue() != null && e.getValue().getZgd() != null ? e.getValue().getZgd().getFullName() : "");
         });
 
-        // step 3: choose Contract
+        binder.forField(bdz).bind(Request::getBdz, Request::setBdz);
+        binder.forField(bo).bind(Request::getBo, Request::setBo);
+
         ComboBox<Contract> contract = new ComboBox<>("Договор");
-        contract.setItems(contractRepository.findAll());
+        List<Contract> contractItems = new ArrayList<>(contractRepository.findAll());
+        if (bean.getContract() != null) {
+            Contract selectedContract = findById(contractItems, Contract::getId, bean.getContract().getId());
+            if (selectedContract != null) {
+                bean.setContract(selectedContract);
+            } else {
+                contractItems.add(bean.getContract());
+            }
+        }
+        contract.setItems(contractItems);
         contract.setItemLabelGenerator(Contract::getName);
         contract.setWidthFull();
+        contract.setClearButtonVisible(true);
+        binder.forField(contract).bind(Request::getContract, Request::setContract);
 
-        // step 4: remaining fields
         TextField vgo = new TextField("ВГО");
         vgo.setWidthFull();
+        binder.bind(vgo, Request::getVgo, Request::setVgo);
+
         NumberField amount = new NumberField("Сумма (млн)");
         amount.setWidthFull();
+        binder.forField(amount).bind(
+                r -> r.getAmount() != null ? r.getAmount().doubleValue() : null,
+                (r, v) -> r.setAmount(v != null ? BigDecimal.valueOf(v) : null));
+
         NumberField amountNoVat = new NumberField("Сумма без НДС (млн)");
         amountNoVat.setWidthFull();
+        binder.forField(amountNoVat).bind(
+                r -> r.getAmountNoVat() != null ? r.getAmountNoVat().doubleValue() : null,
+                (r, v) -> r.setAmountNoVat(v != null ? BigDecimal.valueOf(v) : null));
+
         TextField subject = new TextField("Предмет договора");
         subject.setWidthFull();
+        binder.bind(subject, Request::getSubject, Request::setSubject);
+
         ComboBox<String> period = new ComboBox<>("Период (месяц)");
         period.setItems(monthOptions());
         period.setAllowCustomValue(false);
+        period.setClearButtonVisible(true);
         period.setWidthFull();
+        binder.bind(period, Request::getPeriod, Request::setPeriod);
+
         TextField pm = new TextField("Способ закупки");
         pm.setWidthFull();
-        com.vaadin.flow.component.checkbox.Checkbox input = new com.vaadin.flow.component.checkbox.Checkbox("Вводный объект");
+        binder.bind(pm, Request::getProcurementMethod, Request::setProcurementMethod);
+
+        Checkbox input = new Checkbox("Вводный объект");
         input.setWidthFull();
+        binder.bind(input, Request::isInputObject, Request::setInputObject);
 
-        // simple step control
-        Span step = new Span("Шаг 1 из 4");
-        VerticalLayout step1 = new VerticalLayout(cfo, mvz);
-        step1.setPadding(false);
-        step1.setSpacing(false);
-        step1.setAlignItems(Alignment.STRETCH);
-        step1.setWidthFull();
-        step1.getStyle().set("row-gap", "var(--lumo-space-m)");
-        step1.getStyle().set("margin-bottom", "var(--lumo-space-m)");
+        binder.setBean(bean);
 
-        VerticalLayout step2 = new VerticalLayout(bdz, bo, zgd);
-        step2.setPadding(false);
-        step2.setSpacing(false);
-        step2.setAlignItems(Alignment.STRETCH);
-        step2.setWidthFull();
-        step2.getStyle().set("row-gap", "var(--lumo-space-m)");
-        step2.getStyle().set("margin-bottom", "var(--lumo-space-m)");
+        if (bean.getCfo() != null) {
+            List<Mvz> mvzItems = mvzRepository.findByCfoId(bean.getCfo().getId());
+            mvz.setItems(mvzItems);
+            Mvz selected = findById(mvzItems, Mvz::getId, bean.getMvz() != null ? bean.getMvz().getId() : null);
+            if (selected != null) {
+                mvz.setValue(selected);
+            }
+        } else {
+            mvz.setItems(List.of());
+        }
 
-        VerticalLayout step3 = new VerticalLayout(contract);
-        step3.setPadding(false);
-        step3.setSpacing(false);
-        step3.setAlignItems(Alignment.STRETCH);
-        step3.setWidthFull();
-        step3.getStyle().set("row-gap", "var(--lumo-space-m)");
-        step3.getStyle().set("margin-bottom", "var(--lumo-space-m)");
+        if (bean.getBdz() != null) {
+            List<Bo> boItems = boRepository.findByBdzId(bean.getBdz().getId());
+            bo.setItems(boItems);
+            Bo selected = findById(boItems, Bo::getId, bean.getBo() != null ? bean.getBo().getId() : null);
+            if (selected != null) {
+                bo.setValue(selected);
+            }
+            Zgd currentZgd = bean.getZgd() != null ? bean.getZgd() : bean.getBdz().getZgd();
+            if (currentZgd != null) {
+                zgd.setValue(currentZgd.getFullName());
+                binder.getBean().setZgd(currentZgd);
+            } else {
+                zgd.clear();
+            }
+        } else {
+            bo.setItems(List.of());
+            if (bean.getZgd() != null) {
+                zgd.setValue(bean.getZgd().getFullName());
+            } else {
+                zgd.clear();
+            }
+        }
 
-        VerticalLayout step4 = new VerticalLayout(vgo, amount, amountNoVat, subject, period, pm, input);
-        step4.setPadding(false);
-        step4.setSpacing(false);
-        step4.setAlignItems(Alignment.STRETCH);
-        step4.setWidthFull();
-        step4.getStyle().set("row-gap", "var(--lumo-space-m)");
+        Span stepIndicator = new Span("Шаг 1 из 4");
+        VerticalLayout step1 = stepLayout(cfo, mvz);
+        VerticalLayout step2 = stepLayout(bdz, bo, zgd);
+        VerticalLayout step3 = stepLayout(contract);
+        VerticalLayout step4 = stepLayout(vgo, amount, amountNoVat, subject, period, pm, input);
         step2.setVisible(false);
         step3.setVisible(false);
         step4.setVisible(false);
@@ -335,16 +416,16 @@ public class RequestsView extends VerticalLayout {
             if (step4.isVisible()) {
                 step4.setVisible(false);
                 step3.setVisible(true);
-                step.setText("Шаг 3 из 4");
+                stepIndicator.setText("Шаг 3 из 4");
                 next.setEnabled(true);
             } else if (step3.isVisible()) {
                 step3.setVisible(false);
                 step2.setVisible(true);
-                step.setText("Шаг 2 из 4");
+                stepIndicator.setText("Шаг 2 из 4");
             } else if (step2.isVisible()) {
                 step2.setVisible(false);
                 step1.setVisible(true);
-                step.setText("Шаг 1 из 4");
+                stepIndicator.setText("Шаг 1 из 4");
                 back.setEnabled(false);
             }
         });
@@ -353,38 +434,29 @@ public class RequestsView extends VerticalLayout {
             if (step1.isVisible()) {
                 step1.setVisible(false);
                 step2.setVisible(true);
-                step.setText("Шаг 2 из 4");
+                stepIndicator.setText("Шаг 2 из 4");
                 back.setEnabled(true);
             } else if (step2.isVisible()) {
                 step2.setVisible(false);
                 step3.setVisible(true);
-                step.setText("Шаг 3 из 4");
+                stepIndicator.setText("Шаг 3 из 4");
             } else if (step3.isVisible()) {
                 step3.setVisible(false);
                 step4.setVisible(true);
-                step.setText("Шаг 4 из 4");
+                stepIndicator.setText("Шаг 4 из 4");
                 next.setEnabled(false);
             }
         });
 
-        Button save = new Button("Сохранить", e -> {
-            Request r = new Request();
-            r.setCfo(cfo.getValue());
-            r.setMvz(mvz.getValue());
-            r.setBdz(bdz.getValue());
-            r.setBo(bo.getValue());
-            if (bdz.getValue() != null) {
-                r.setZgd(bdz.getValue().getZgd());
+        Button save = new Button(editing ? "Сохранить изменения" : "Сохранить", e -> {
+            Request current = binder.getBean();
+            if (current == null) {
+                return;
             }
-            r.setContract(contract.getValue());
-            r.setVgo(vgo.getValue());
-            r.setAmount(amount.getValue() != null ? java.math.BigDecimal.valueOf(amount.getValue()) : null);
-            r.setAmountNoVat(amountNoVat.getValue() != null ? java.math.BigDecimal.valueOf(amountNoVat.getValue()) : null);
-            r.setSubject(subject.getValue());
-            r.setPeriod(period.getValue());
-            r.setInputObject(input.getValue());
-            r.setProcurementMethod(pm.getValue());
-            requestService.save(r);
+            if (bdz.getValue() != null) {
+                current.setZgd(bdz.getValue().getZgd());
+            }
+            requestService.save(current);
             d.close();
             reload();
         });
@@ -396,18 +468,119 @@ public class RequestsView extends VerticalLayout {
         actions.setWidthFull();
         actions.getStyle().set("margin-top", "var(--lumo-space-m)");
 
-        VerticalLayout content = new VerticalLayout(step, step1, step2, step3, step4, actions);
-        content.setPadding(false);
-        content.setSpacing(false);
-        content.setAlignItems(Alignment.STRETCH);
-        content.setWidthFull();
-        content.getStyle().set("max-width", "600px");
-        step.getStyle().set("align-self", "flex-start");
-        step.getStyle().set("margin-bottom", "var(--lumo-space-m)");
-        step.getStyle().set("font-weight", "600");
+        VerticalLayout layout = new VerticalLayout(stepIndicator, step1, step2, step3, step4, actions);
+        layout.setPadding(false);
+        layout.setSpacing(false);
+        layout.setAlignItems(Alignment.STRETCH);
+        layout.setWidthFull();
+        layout.getStyle().set("max-width", "600px");
+        layout.getStyle().set("margin", "0 auto");
+        stepIndicator.getStyle().set("align-self", "flex-start");
+        stepIndicator.getStyle().set("margin-bottom", "var(--lumo-space-m)");
+        stepIndicator.getStyle().set("font-weight", "600");
 
-        d.add(content);
+        d.add(layout);
         d.open();
+    }
+
+    private Component infoSection(String title, InfoEntry... entries) {
+        VerticalLayout section = new VerticalLayout();
+        section.setPadding(true);
+        section.setSpacing(false);
+        section.setWidthFull();
+        section.getStyle().set("border", "1px solid var(--lumo-contrast-20pct)");
+        section.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
+        section.getStyle().set("padding", "var(--lumo-space-m)");
+        section.getStyle().set("gap", "var(--lumo-space-s)");
+
+        Span header = new Span(title);
+        header.getStyle().set("font-weight", "600");
+        header.getStyle().set("margin-bottom", "var(--lumo-space-s)");
+        section.add(header);
+
+        FormLayout layout = new FormLayout();
+        layout.setWidthFull();
+        layout.setResponsiveSteps(
+                new FormLayout.ResponsiveStep("0", 1),
+                new FormLayout.ResponsiveStep("600px", 2)
+        );
+
+        for (InfoEntry entry : entries) {
+            Span value = new Span(entry.value());
+            value.getStyle().set("font-weight", "500");
+            layout.addFormItem(value, entry.label());
+        }
+
+        section.add(layout);
+        return section;
+    }
+
+    private VerticalLayout stepLayout(Component... components) {
+        VerticalLayout layout = new VerticalLayout(components);
+        layout.setPadding(false);
+        layout.setSpacing(false);
+        layout.setAlignItems(Alignment.STRETCH);
+        layout.setWidthFull();
+        layout.getStyle().set("row-gap", "var(--lumo-space-m)");
+        layout.getStyle().set("margin-bottom", "var(--lumo-space-m)");
+        return layout;
+    }
+
+    private <T> T findById(List<T> items, Function<T, Long> idExtractor, Long id) {
+        if (id == null) {
+            return null;
+        }
+        return items.stream()
+                .filter(item -> id.equals(idExtractor.apply(item)))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String formatCodeName(String code, String name) {
+        String codePart = code != null ? code.trim() : "";
+        String namePart = name != null ? name.trim() : "";
+        if (!codePart.isEmpty() && !namePart.isEmpty()) {
+            return codePart + " — " + namePart;
+        }
+        if (!codePart.isEmpty()) {
+            return codePart;
+        }
+        return namePart;
+    }
+
+    private InfoEntry entry(String label, String value) {
+        return new InfoEntry(label, valueOrDash(value));
+    }
+
+    private InfoEntry entry(String label, BigDecimal value) {
+        return new InfoEntry(label, valueOrDash(value));
+    }
+
+    private InfoEntry entry(String label, boolean value) {
+        return new InfoEntry(label, yesNo(value));
+    }
+
+    private InfoEntry entry(String label, LocalDate value) {
+        return new InfoEntry(label, valueOrDash(value));
+    }
+
+    private String valueOrDash(String value) {
+        if (value == null || value.isBlank()) {
+            return "—";
+        }
+        return value;
+    }
+
+    private String valueOrDash(BigDecimal value) {
+        return value != null ? value.toPlainString() : "—";
+    }
+
+    private String valueOrDash(LocalDate value) {
+        return value != null ? DATE_FORMATTER.format(value) : "—";
+    }
+
+    private String yesNo(boolean value) {
+        return value ? "Да" : "Нет";
     }
 
     private List<String> monthOptions() {
@@ -423,4 +596,5 @@ public class RequestsView extends VerticalLayout {
         }
         return value.substring(0, 1).toUpperCase(locale) + value.substring(1);
     }
+    private record InfoEntry(String label, String value) {}
 }
