@@ -5,6 +5,7 @@ import com.example.budget.repo.*;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.BoService;
 import com.example.budget.service.ContractService;
+import com.example.budget.service.ZgdService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
@@ -34,7 +35,7 @@ public class ReferencesView extends SplitLayout {
 
     private final BdzService bdzService;
     private final BoService boService;
-    private final ZgdRepository zgdRepository;
+    private final ZgdService zgdService;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
     private final ContractService contractService;
@@ -42,12 +43,12 @@ public class ReferencesView extends SplitLayout {
     private final ListBox<String> leftMenu = new ListBox<>();
     private final Div rightPanel = new Div();
 
-    public ReferencesView(BdzService bdzService, BoService boService, ZgdRepository zgdRepository,
+    public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
                           CfoRepository cfoRepository, MvzRepository mvzRepository,
                           ContractService contractService) {
         this.bdzService = bdzService;
         this.boService = boService;
-        this.zgdRepository = zgdRepository;
+        this.zgdService = zgdService;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
         this.contractService = contractService;
@@ -235,9 +236,9 @@ public class ReferencesView extends SplitLayout {
         grid.addColumn(item -> item.getBdz() != null ? item.getBdz().getName() : "—").setHeader("БДЗ");
 
         return genericGrid(Zgd.class, grid,
-                () -> zgdRepository.findAll(),
-                zgdRepository::save,
-                zgdRepository::delete,
+                zgdService::findAll,
+                zgdService::save,
+                zgdService::delete,
                 (selected, refresh) -> {
                     Zgd bean = selected != null ? selected : new Zgd();
                     Dialog d = new Dialog("Курирующий ЗГД");
@@ -253,8 +254,8 @@ public class ReferencesView extends SplitLayout {
                     binder.bind(bdz, Zgd::getBdz, Zgd::setBdz);
                     binder.setBean(bean);
 
-                    Button save = new Button("Сохранить", e -> { zgdRepository.save(binder.getBean()); refresh.run(); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) zgdRepository.delete(bean); refresh.run(); d.close(); });
+                    Button save = new Button("Сохранить", e -> { zgdService.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) zgdService.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(fio, dep, bdz), new HorizontalLayout(save, del, close));
