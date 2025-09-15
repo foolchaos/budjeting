@@ -43,6 +43,7 @@ public class RequestService {
         });
         return list;
     }
+    @Transactional
     public Request save(Request r) {
         if (r.getBdz() != null && r.getBdz().getId() != null) {
             r.setBdz(bdzRepository.getReferenceById(r.getBdz().getId()));
