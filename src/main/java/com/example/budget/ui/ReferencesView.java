@@ -21,14 +21,19 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.data.binder.Binder;
-import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 @Component
 @UIScope
@@ -93,30 +98,97 @@ public class ReferencesView extends SplitLayout {
         tree.addColumn(Bdz::getName).setHeader("Наименование");
         tree.setSelectionMode(Grid.SelectionMode.MULTI);
         tree.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
-        refreshBdz(tree);
+        tree.setHeightFull();
+
+        Select<Integer> pageSizeSelect = new Select<>();
+        pageSizeSelect.setLabel("Строк на странице");
+        pageSizeSelect.setItems(5, 10, 25, 50);
+        pageSizeSelect.setValue(10);
+
+        Button prev = new Button("Назад");
+        Button next = new Button("Вперёд");
+        Span pageInfo = new Span();
+
+        List<Bdz> roots = new ArrayList<>();
+        final int[] currentPage = {0};
+
+        Runnable updatePage = () -> {
+            int pageSize = pageSizeSelect.getValue();
+            int total = roots.size();
+
+            if (total == 0) {
+                tree.setItems(Collections.emptyList(), b -> bdzService.findChildren(b.getId()));
+                pageInfo.setText("0 из 0");
+                prev.setEnabled(false);
+                next.setEnabled(false);
+                return;
+            }
+
+            int pageCount = (int) Math.ceil((double) total / pageSize);
+            if (currentPage[0] >= pageCount) {
+                currentPage[0] = Math.max(pageCount - 1, 0);
+            }
+
+            int from = currentPage[0] * pageSize;
+            int to = Math.min(from + pageSize, total);
+            tree.setItems(roots.subList(from, to), b -> bdzService.findChildren(b.getId()));
+            pageInfo.setText(String.format("%d–%d из %d", from + 1, to, total));
+
+            prev.setEnabled(currentPage[0] > 0);
+            next.setEnabled(currentPage[0] < pageCount - 1);
+        };
+
+        Runnable reload = () -> {
+            roots.clear();
+            roots.addAll(bdzService.findRoots());
+            currentPage[0] = 0;
+            updatePage.run();
+        };
+
+        pageSizeSelect.addValueChangeListener(e -> {
+            currentPage[0] = 0;
+            updatePage.run();
+        });
+
+        prev.addClickListener(e -> {
+            if (currentPage[0] > 0) {
+                currentPage[0]--;
+                updatePage.run();
+            }
+        });
+
+        next.addClickListener(e -> {
+            int pageSize = pageSizeSelect.getValue();
+            if ((currentPage[0] + 1) * pageSize < roots.size()) {
+                currentPage[0]++;
+                updatePage.run();
+            }
+        });
 
         // open details on item click
-        tree.addItemClickListener(ev -> openBdzCard(ev.getItem(), tree));
+        tree.addItemClickListener(ev -> openBdzCard(ev.getItem(), reload));
 
-        create.addClickListener(e -> openBdzCard(new Bdz(), tree));
+        create.addClickListener(e -> openBdzCard(new Bdz(), reload));
         delete.addClickListener(e -> {
             tree.getSelectedItems().forEach(item -> {
                 if (item.getId() != null) bdzService.deleteById(item.getId());
             });
-            refreshBdz(tree);
+            reload.run();
         });
 
-        layout.add(new HorizontalLayout(create, delete), tree);
+        HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
+        pagination.setAlignItems(Alignment.CENTER);
+        pagination.setWidthFull();
+        pageInfo.getStyle().set("margin-left", "auto");
+        pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
+
+        layout.add(new HorizontalLayout(create, delete), tree, pagination);
         layout.setFlexGrow(1, tree);
+        reload.run();
         return layout;
     }
 
-    private void refreshBdz(TreeGrid<Bdz> tree) {
-        java.util.List<Bdz> roots = bdzService.findRoots();
-        tree.setItems(roots, b -> bdzService.findChildren(b.getId()));
-    }
-
-    private void openBdzCard(Bdz entity, TreeGrid<Bdz> tree) {
+    private void openBdzCard(Bdz entity, Runnable refresh) {
         Bdz bean = entity.getId() != null ? bdzService.findById(entity.getId()) : entity;
 
         Dialog dlg = new Dialog("Статья БДЗ");
@@ -145,13 +217,13 @@ public class ReferencesView extends SplitLayout {
 
         Button save = new Button("Сохранить", e -> {
             bdzService.save(binder.getBean());
-            refreshBdz(tree);
+            refresh.run();
             dlg.close();
         });
         Button delete = new Button("Удалить", e -> {
             if (bean.getId() != null) {
                 bdzService.deleteById(bean.getId());
-                refreshBdz(tree);
+                refresh.run();
             }
             dlg.close();
         });
@@ -165,7 +237,7 @@ public class ReferencesView extends SplitLayout {
 
     // ==== Generic helpers for other refs ====
     private <T> VerticalLayout genericGrid(Class<T> type, Grid<T> grid,
-                                           java.util.function.Supplier<List<T>> loader,
+                                           Supplier<List<T>> loader,
                                            java.util.function.Function<T, T> saver,
                                            java.util.function.Consumer<T> deleter,
                                            BiFunction<T, Runnable, Dialog> editorFactory) {
@@ -174,17 +246,75 @@ public class ReferencesView extends SplitLayout {
         Button create = new Button("Создать");
         Button delete = new Button("Удалить выбранные");
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
-
-        ListDataProvider<T> provider = new ListDataProvider<>(loader.get());
-        grid.setItems(provider);
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
         grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+        grid.setHeightFull();
+
+        Select<Integer> pageSizeSelect = new Select<>();
+        pageSizeSelect.setLabel("Строк на странице");
+        pageSizeSelect.setItems(5, 10, 25, 50);
+        pageSizeSelect.setValue(10);
+
+        Button prev = new Button("Назад");
+        Button next = new Button("Вперёд");
+        Span pageInfo = new Span();
+
+        List<T> items = new ArrayList<>();
+        final int[] currentPage = {0};
+
+        Runnable updatePage = () -> {
+            int pageSize = pageSizeSelect.getValue();
+            int total = items.size();
+
+            if (total == 0) {
+                grid.setItems(List.of());
+                pageInfo.setText("0 из 0");
+                prev.setEnabled(false);
+                next.setEnabled(false);
+                return;
+            }
+
+            int pageCount = (int) Math.ceil((double) total / pageSize);
+            if (currentPage[0] >= pageCount) {
+                currentPage[0] = Math.max(pageCount - 1, 0);
+            }
+
+            int from = currentPage[0] * pageSize;
+            int to = Math.min(from + pageSize, total);
+            grid.setItems(items.subList(from, to));
+            pageInfo.setText(String.format("%d–%d из %d", from + 1, to, total));
+
+            prev.setEnabled(currentPage[0] > 0);
+            next.setEnabled(currentPage[0] < pageCount - 1);
+        };
 
         Runnable refresh = () -> {
-            provider.getItems().clear();
-            provider.getItems().addAll(loader.get());
-            provider.refreshAll();
+            items.clear();
+            items.addAll(loader.get());
+            currentPage[0] = 0;
+            grid.deselectAll();
+            updatePage.run();
         };
+
+        pageSizeSelect.addValueChangeListener(e -> {
+            currentPage[0] = 0;
+            updatePage.run();
+        });
+
+        prev.addClickListener(e -> {
+            if (currentPage[0] > 0) {
+                currentPage[0]--;
+                updatePage.run();
+            }
+        });
+
+        next.addClickListener(e -> {
+            int pageSize = pageSizeSelect.getValue();
+            if ((currentPage[0] + 1) * pageSize < items.size()) {
+                currentPage[0]++;
+                updatePage.run();
+            }
+        });
 
         grid.addItemClickListener(e -> editorFactory.apply(e.getItem(), refresh).open());
         create.addClickListener(e -> editorFactory.apply(null, refresh).open());
@@ -193,8 +323,16 @@ public class ReferencesView extends SplitLayout {
             refresh.run();
         });
 
-        layout.add(new HorizontalLayout(create, delete), grid);
+        HorizontalLayout actions = new HorizontalLayout(create, delete);
+        HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
+        pagination.setAlignItems(Alignment.CENTER);
+        pagination.setWidthFull();
+        pageInfo.getStyle().set("margin-left", "auto");
+        pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
+
+        layout.add(actions, grid, pagination);
         layout.setFlexGrow(1, grid);
+        refresh.run();
         return layout;
     }
 

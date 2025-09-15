@@ -20,6 +20,7 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
@@ -50,6 +51,12 @@ public class RequestsView extends VerticalLayout {
     private final ContractRepository contractRepository;
 
     private final Grid<Request> grid = new Grid<>(Request.class, false);
+    private final List<Request> allRequests = new ArrayList<>();
+    private final Select<Integer> pageSizeSelect = new Select<>();
+    private final Button prevPage = new Button("Назад");
+    private final Button nextPage = new Button("Вперёд");
+    private final Span pageInfo = new Span();
+    private int currentPage = 0;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     public RequestsView(RequestService requestService, BdzService bdzService,
@@ -77,8 +84,11 @@ public class RequestsView extends VerticalLayout {
         HorizontalLayout actions = new HorizontalLayout(create, delete);
         grid.setSizeFull();
 
-        add(actions, grid);
+        HorizontalLayout pagination = buildPaginationBar();
+
+        add(actions, grid, pagination);
         setFlexGrow(1, grid);
+        setFlexGrow(0, pagination);
         reload();
     }
 
@@ -142,8 +152,78 @@ public class RequestsView extends VerticalLayout {
         grid.addItemClickListener(e -> openCard(e.getItem()));
     }
 
+    private HorizontalLayout buildPaginationBar() {
+        pageSizeSelect.setLabel("Строк на странице");
+        pageSizeSelect.setItems(5, 10, 25, 50);
+        pageSizeSelect.setValue(10);
+        pageSizeSelect.addValueChangeListener(e -> {
+            currentPage = 0;
+            updateGridPage();
+        });
+
+        prevPage.addClickListener(e -> {
+            if (currentPage > 0) {
+                currentPage--;
+                updateGridPage();
+            }
+        });
+
+        nextPage.addClickListener(e -> {
+            if ((currentPage + 1) * pageSizeSelect.getValue() < allRequests.size()) {
+                currentPage++;
+                updateGridPage();
+            }
+        });
+
+        HorizontalLayout pagination = new HorizontalLayout(prevPage, nextPage, pageInfo, pageSizeSelect);
+        pagination.setAlignItems(Alignment.CENTER);
+        pagination.setWidthFull();
+        pageInfo.getStyle().set("margin-left", "auto");
+        pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
+
+        updateGridPage();
+        return pagination;
+    }
+
     private void reload() {
-        grid.setItems(requestService.findAll());
+        allRequests.clear();
+        allRequests.addAll(requestService.findAll());
+        currentPage = 0;
+        updateGridPage();
+    }
+
+    private void updateGridPage() {
+        Integer selectedSize = pageSizeSelect.getValue();
+        int pageSize = selectedSize != null ? selectedSize : 10;
+        int total = allRequests.size();
+
+        if (total == 0) {
+            grid.setItems(List.of());
+            pageInfo.setText("0 из 0");
+            prevPage.setEnabled(false);
+            nextPage.setEnabled(false);
+            return;
+        }
+
+        int pageCount = (int) Math.ceil((double) total / pageSize);
+        if (currentPage >= pageCount) {
+            currentPage = Math.max(pageCount - 1, 0);
+        }
+
+        int fromIndex = currentPage * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, total);
+
+        if (fromIndex >= total) {
+            currentPage = 0;
+            fromIndex = 0;
+            toIndex = Math.min(pageSize, total);
+        }
+
+        grid.setItems(allRequests.subList(fromIndex, toIndex));
+        pageInfo.setText(String.format("%d–%d из %d", fromIndex + 1, toIndex, total));
+
+        prevPage.setEnabled(currentPage > 0);
+        nextPage.setEnabled(currentPage < pageCount - 1);
     }
 
     private void openCard(Request entity) {
