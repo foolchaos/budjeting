@@ -57,7 +57,10 @@ public class RequestService {
             r.setMvz(mvzRepository.getReferenceById(r.getMvz().getId()));
         }
         if (r.getContract() != null && r.getContract().getId() != null) {
-            r.setContract(contractRepository.getReferenceById(r.getContract().getId()));
+            Long contractId = r.getContract().getId();
+            Contract managedContract = contractRepository.findById(contractId)
+                    .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
+            r.setContract(managedContract);
         }
         if (r.getZgd() != null && r.getZgd().getId() != null) {
             r.setZgd(zgdRepository.getReferenceById(r.getZgd().getId()));
