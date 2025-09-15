@@ -22,7 +22,6 @@ import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -59,7 +58,7 @@ public class ReferencesView extends SplitLayout {
         rightPanel.setSizeFull();
         setOrientation(SplitLayout.Orientation.HORIZONTAL);
         setSplitterPosition(20);
-addToPrimary(leftMenu);
+        addToPrimary(leftMenu);
         addToSecondary(rightPanel);
 
         renderRight("БДЗ");
