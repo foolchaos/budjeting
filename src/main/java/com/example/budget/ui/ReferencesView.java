@@ -20,6 +20,7 @@ import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.spring.annotation.UIScope;
@@ -341,31 +342,24 @@ public class ReferencesView extends SplitLayout {
                     TextField name = new TextField("Наименование");
                     TextField inum = new TextField("№ внутренний");
                     TextField exnum = new TextField("№ внешний");
-                    TextField date = new TextField("Дата (YYYY-MM-DD)");
+                    DatePicker date = new DatePicker("Дата");
                     TextField resp = new TextField("Ответственный (ФИО)");
 
                     if (bean.getContractDate() != null) {
-                        date.setValue(bean.getContractDate().toString());
+                        date.setValue(bean.getContractDate());
                     }
 
                     binder.forField(name).bind(Contract::getName, Contract::setName);
                     binder.bind(inum, Contract::getInternalNumber, Contract::setInternalNumber);
                     binder.bind(exnum, Contract::getExternalNumber, Contract::setExternalNumber);
+                    binder.bind(date, Contract::getContractDate, Contract::setContractDate);
                     binder.bind(resp, Contract::getResponsible, Contract::setResponsible);
                     binder.setBean(bean);
 
                     Button save = new Button("Сохранить", e -> {
-                        try {
-                            if (date.getValue() != null && !date.getValue().isBlank()) {
-                                bean.setContractDate(java.time.LocalDate.parse(date.getValue()));
-                            }
-                            contractService.save(bean);
-                            refresh.run();
-                            d.close();
-                        } catch (Exception ex) {
-                            date.setInvalid(true);
-                            date.setErrorMessage("Неверный формат даты");
-                        }
+                        contractService.save(binder.getBean());
+                        refresh.run();
+                        d.close();
                     });
                     Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractService.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
