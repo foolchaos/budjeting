@@ -20,6 +20,9 @@ public class MainView extends VerticalLayout {
         this.requestsView = requestsView;
 
         setSizeFull();
+        setPadding(false);
+        setSpacing(false);
+        setMargin(false);
         tabs.setWidthFull();
         add(tabs);
 

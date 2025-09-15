@@ -50,6 +50,7 @@ public class RequestsView extends VerticalLayout {
         setSizeFull();
         setPadding(false);
         setSpacing(false);
+        setMargin(false);
         buildGrid();
 
         Button create = new Button("Создать");
