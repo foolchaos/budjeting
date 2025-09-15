@@ -4,6 +4,7 @@ import com.example.budget.domain.Bdz;
 import com.example.budget.domain.Request;
 import com.example.budget.repo.BdzRepository;
 import com.example.budget.repo.RequestRepository;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,21 +23,21 @@ public class BdzService {
     @Transactional(readOnly = true)
     public List<Bdz> findAll() {
         List<Bdz> list = bdzRepository.findAll();
-        list.forEach(b -> b.getName());
+        list.forEach(Hibernate::initialize);
         return list;
     }
 
     @Transactional(readOnly = true)
     public java.util.List<Bdz> findRoots() {
         List<Bdz> list = bdzRepository.findByParentIsNull();
-        list.forEach(b -> b.getName());
+        list.forEach(Hibernate::initialize);
         return list;
     }
 
     @Transactional(readOnly = true)
     public java.util.List<Bdz> findChildren(Long parentId) {
         List<Bdz> list = bdzRepository.findByParentId(parentId);
-        list.forEach(b -> b.getName());
+        list.forEach(Hibernate::initialize);
         return list;
     }
 
