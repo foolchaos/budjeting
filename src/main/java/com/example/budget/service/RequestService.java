@@ -15,14 +15,16 @@ public class RequestService {
     private final BdzRepository bdzRepository;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
+    private final ContractRepository contractRepository;
 
     public RequestService(RequestRepository requestRepository, BoRepository boRepository, BdzRepository bdzRepository,
-                          CfoRepository cfoRepository, MvzRepository mvzRepository) {
+                          CfoRepository cfoRepository, MvzRepository mvzRepository, ContractRepository contractRepository) {
         this.requestRepository = requestRepository;
         this.boRepository = boRepository;
         this.bdzRepository = bdzRepository;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
+        this.contractRepository = contractRepository;
     }
 
     @Transactional(readOnly = true)
@@ -38,7 +40,12 @@ public class RequestService {
         });
         return list;
     }
-    public Request save(Request r) { return requestRepository.save(r); }
+    public Request save(Request r) {
+        if (r.getContract() != null && r.getContract().getId() != null) {
+            r.setContract(contractRepository.getReferenceById(r.getContract().getId()));
+        }
+        return requestRepository.save(r);
+    }
     public void deleteById(Long id) { requestRepository.deleteById(id); }
 
     public List<Bo> findBoByBdz(Long bdzId) { return boRepository.findByBdzId(bdzId); }
