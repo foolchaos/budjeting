@@ -7,7 +7,6 @@ import com.example.budget.repo.CfoRepository;
 import com.example.budget.repo.MvzRepository;
 import com.example.budget.repo.ContractRepository;
 import com.example.budget.service.RequestService;
-import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -483,7 +482,7 @@ public class RequestsView extends VerticalLayout {
         d.open();
     }
 
-    private Component infoSection(String title, InfoEntry... entries) {
+    private com.vaadin.flow.component.Component infoSection(String title, InfoEntry... entries) {
         VerticalLayout section = new VerticalLayout();
         section.setPadding(true);
         section.setSpacing(false);
@@ -515,7 +514,7 @@ public class RequestsView extends VerticalLayout {
         return section;
     }
 
-    private VerticalLayout stepLayout(Component... components) {
+    private VerticalLayout stepLayout(com.vaadin.flow.component.Component... components) {
         VerticalLayout layout = new VerticalLayout(components);
         layout.setPadding(false);
         layout.setSpacing(false);
