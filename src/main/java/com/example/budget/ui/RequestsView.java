@@ -19,7 +19,6 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
-import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
@@ -38,7 +37,6 @@ public class RequestsView extends VerticalLayout {
     private final MvzRepository mvzRepository;
 
     private final Grid<Request> grid = new Grid<>(Request.class, false);
-    private ListDataProvider<Request> provider;
 
     public RequestsView(RequestService requestService, BdzRepository bdzRepository,
                         BoRepository boRepository, CfoRepository cfoRepository, MvzRepository mvzRepository) {
@@ -82,64 +80,11 @@ public class RequestsView extends VerticalLayout {
         grid.addColumn(r -> r.isInputObject() ? "Да" : "Нет").setHeader("Вводный объект");
         grid.addColumn(Request::getProcurementMethod).setHeader("Способ закупки");
 
-        // Фильтры (простые текстовые/чекбокс)
-        var header = grid.appendHeaderRow();
-        TextField fNumber = new TextField(); fNumber.setPlaceholder("фильтр");
-        TextField fBdz = new TextField(); fBdz.setPlaceholder("фильтр");
-        TextField fCfo = new TextField(); fCfo.setPlaceholder("фильтр");
-        TextField fMvz = new TextField(); fMvz.setPlaceholder("фильтр");
-        TextField fVgo = new TextField(); fVgo.setPlaceholder("фильтр");
-        TextField fBo = new TextField(); fBo.setPlaceholder("фильтр");
-        TextField fContr = new TextField(); fContr.setPlaceholder("фильтр");
-        TextField fAmt = new TextField(); fAmt.setPlaceholder("фильтр");
-        TextField fAmtNo = new TextField(); fAmtNo.setPlaceholder("фильтр");
-        TextField fSubj = new TextField(); fSubj.setPlaceholder("фильтр");
-        TextField fPer = new TextField(); fPer.setPlaceholder("фильтр");
-        TextField fIn = new TextField(); fIn.setPlaceholder("Да/Нет");
-        TextField fProc = new TextField(); fProc.setPlaceholder("фильтр");
-
-        var cols = grid.getColumns();
-        header.getCell(cols.get(0)).setComponent(fNumber);
-        header.getCell(cols.get(1)).setComponent(fBdz);
-        header.getCell(cols.get(2)).setComponent(fCfo);
-        header.getCell(cols.get(3)).setComponent(fMvz);
-        header.getCell(cols.get(4)).setComponent(fVgo);
-        header.getCell(cols.get(5)).setComponent(fBo);
-        header.getCell(cols.get(6)).setComponent(fContr);
-        header.getCell(cols.get(7)).setComponent(fAmt);
-        header.getCell(cols.get(8)).setComponent(fAmtNo);
-        header.getCell(cols.get(9)).setComponent(fSubj);
-        header.getCell(cols.get(10)).setComponent(fPer);
-        header.getCell(cols.get(11)).setComponent(fIn);
-        header.getCell(cols.get(12)).setComponent(fProc);
-
-        var updater = (Runnable) this::applyFilters;
-        fNumber.addValueChangeListener(e -> updater.run());
-        fBdz.addValueChangeListener(e -> updater.run());
-        fCfo.addValueChangeListener(e -> updater.run());
-        fMvz.addValueChangeListener(e -> updater.run());
-        fVgo.addValueChangeListener(e -> updater.run());
-        fBo.addValueChangeListener(e -> updater.run());
-        fContr.addValueChangeListener(e -> updater.run());
-        fAmt.addValueChangeListener(e -> updater.run());
-        fAmtNo.addValueChangeListener(e -> updater.run());
-        fSubj.addValueChangeListener(e -> updater.run());
-        fPer.addValueChangeListener(e -> updater.run());
-        fIn.addValueChangeListener(e -> updater.run());
-        fProc.addValueChangeListener(e -> updater.run());
-
         grid.addItemClickListener(e -> openCard(e.getItem()));
     }
 
-    private void applyFilters() {
-        if (provider == null) return;
-        provider.clearFilters();
-        // Keep it simple: no-op here; Vaadin demo uses more complex logic, omitted for brevity.
-    }
-
     private void reload() {
-        provider = new ListDataProvider<>(requestService.findAll());
-        grid.setDataProvider(provider);
+        grid.setItems(requestService.findAll());
     }
 
     private void openCard(Request entity) {
