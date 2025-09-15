@@ -16,15 +16,18 @@ public class RequestService {
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
+    private final ZgdRepository zgdRepository;
 
     public RequestService(RequestRepository requestRepository, BoRepository boRepository, BdzRepository bdzRepository,
-                          CfoRepository cfoRepository, MvzRepository mvzRepository, ContractRepository contractRepository) {
+                          CfoRepository cfoRepository, MvzRepository mvzRepository, ContractRepository contractRepository,
+                          ZgdRepository zgdRepository) {
         this.requestRepository = requestRepository;
         this.boRepository = boRepository;
         this.bdzRepository = bdzRepository;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
+        this.zgdRepository = zgdRepository;
     }
 
     @Transactional(readOnly = true)
@@ -41,8 +44,23 @@ public class RequestService {
         return list;
     }
     public Request save(Request r) {
+        if (r.getBdz() != null && r.getBdz().getId() != null) {
+            r.setBdz(bdzRepository.getReferenceById(r.getBdz().getId()));
+        }
+        if (r.getBo() != null && r.getBo().getId() != null) {
+            r.setBo(boRepository.getReferenceById(r.getBo().getId()));
+        }
+        if (r.getCfo() != null && r.getCfo().getId() != null) {
+            r.setCfo(cfoRepository.getReferenceById(r.getCfo().getId()));
+        }
+        if (r.getMvz() != null && r.getMvz().getId() != null) {
+            r.setMvz(mvzRepository.getReferenceById(r.getMvz().getId()));
+        }
         if (r.getContract() != null && r.getContract().getId() != null) {
             r.setContract(contractRepository.getReferenceById(r.getContract().getId()));
+        }
+        if (r.getZgd() != null && r.getZgd().getId() != null) {
+            r.setZgd(zgdRepository.getReferenceById(r.getZgd().getId()));
         }
         return requestRepository.save(r);
     }
