@@ -14,7 +14,6 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
@@ -48,9 +47,6 @@ public class RequestsView extends VerticalLayout {
         this.mvzRepository = mvzRepository;
 
         setSizeFull();
-        setPadding(false);
-        setSpacing(false);
-        setMargin(false);
         buildGrid();
 
         Button create = new Button("Создать");
@@ -62,13 +58,11 @@ public class RequestsView extends VerticalLayout {
             reload();
         });
 
-        Div gridWrapper = new Div(grid);
-        gridWrapper.setSizeFull();
-        gridWrapper.getStyle().set("overflow", "auto");
+        HorizontalLayout actions = new HorizontalLayout(create, delete);
         grid.setSizeFull();
 
-        add(new HorizontalLayout(create, delete), gridWrapper);
-        setFlexGrow(1, gridWrapper);
+        add(actions, grid);
+        setFlexGrow(1, grid);
         reload();
     }
 
