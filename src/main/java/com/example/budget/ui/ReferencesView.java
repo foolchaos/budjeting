@@ -4,6 +4,7 @@ import com.example.budget.domain.*;
 import com.example.budget.repo.*;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.BoService;
+import com.example.budget.service.ContractService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
@@ -36,20 +37,20 @@ public class ReferencesView extends SplitLayout {
     private final ZgdRepository zgdRepository;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
-    private final ContractRepository contractRepository;
+    private final ContractService contractService;
 
     private final ListBox<String> leftMenu = new ListBox<>();
     private final Div rightPanel = new Div();
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdRepository zgdRepository,
                           CfoRepository cfoRepository, MvzRepository mvzRepository,
-                          ContractRepository contractRepository) {
+                          ContractService contractService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdRepository = zgdRepository;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
-        this.contractRepository = contractRepository;
+        this.contractService = contractService;
 
         setSizeFull();
         leftMenu.setItems("БДЗ", "БО", "ЗГД", "ЦФО", "МВЗ", "Договор");
@@ -329,9 +330,9 @@ public class ReferencesView extends SplitLayout {
         grid.addColumn(Contract::getResponsible).setHeader("Ответственный");
 
         return genericGrid(Contract.class, grid,
-                () -> contractRepository.findAll(),
-                contractRepository::save,
-                contractRepository::delete,
+                contractService::findAll,
+                contractService::save,
+                contractService::delete,
                 (selected, refresh) -> {
                     Contract bean = selected != null ? selected : new Contract();
                     Dialog d = new Dialog("Договор");
@@ -341,6 +342,10 @@ public class ReferencesView extends SplitLayout {
                     TextField exnum = new TextField("№ внешний");
                     TextField date = new TextField("Дата (YYYY-MM-DD)");
                     TextField resp = new TextField("Ответственный (ФИО)");
+
+                    if (bean.getContractDate() != null) {
+                        date.setValue(bean.getContractDate().toString());
+                    }
 
                     binder.forField(name).bind(Contract::getName, Contract::setName);
                     binder.bind(inum, Contract::getInternalNumber, Contract::setInternalNumber);
@@ -353,7 +358,7 @@ public class ReferencesView extends SplitLayout {
                             if (date.getValue() != null && !date.getValue().isBlank()) {
                                 bean.setContractDate(java.time.LocalDate.parse(date.getValue()));
                             }
-                            contractRepository.save(bean);
+                            contractService.save(bean);
                             refresh.run();
                             d.close();
                         } catch (Exception ex) {
@@ -361,7 +366,7 @@ public class ReferencesView extends SplitLayout {
                             date.setErrorMessage("Неверный формат даты");
                         }
                     });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractRepository.delete(bean); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractService.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(name, inum, exnum, date, resp), new HorizontalLayout(save, del, close));

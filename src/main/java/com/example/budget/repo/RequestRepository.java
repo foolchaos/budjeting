@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface RequestRepository extends JpaRepository<Request, Long> {
     List<Request> findByBoId(Long boId);
+
+    List<Request> findByContractId(Long contractId);
 }
