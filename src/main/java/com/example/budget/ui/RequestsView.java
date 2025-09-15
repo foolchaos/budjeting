@@ -25,8 +25,12 @@ import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Month;
+import java.time.format.TextStyle;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 @Component
 @UIScope
@@ -158,7 +162,7 @@ public class RequestsView extends VerticalLayout {
 
         TextField vgo = new TextField("ВГО"); vgo.setValue(entity.getVgo()==null? "" : entity.getVgo()); vgo.setReadOnly(true);
         TextField amount = new TextField("Сумма (млн)"); amount.setValue(entity.getAmount()!=null? entity.getAmount().toPlainString():""); amount.setReadOnly(true);
-        TextField amountNoVat = new TextField("Без НДС (млн)"); amountNoVat.setValue(entity.getAmountNoVat()!=null? entity.getAmountNoVat().toPlainString():""); amountNoVat.setReadOnly(true);
+        TextField amountNoVat = new TextField("Сумма без НДС (млн)"); amountNoVat.setValue(entity.getAmountNoVat()!=null? entity.getAmountNoVat().toPlainString():""); amountNoVat.setReadOnly(true);
         TextField subject = new TextField("Предмет договора"); subject.setValue(entity.getSubject()==null? "" : entity.getSubject()); subject.setReadOnly(true);
         TextField period = new TextField("Период (месяц)"); period.setValue(entity.getPeriod()==null? "" : entity.getPeriod()); period.setReadOnly(true);
         TextField input = new TextField("Вводный объект"); input.setValue(entity.isInputObject()? "Да":"Нет"); input.setReadOnly(true);
@@ -181,12 +185,21 @@ public class RequestsView extends VerticalLayout {
         binder.setBean(entity);
 
         TextField vgo = new TextField("ВГО");
+        vgo.setWidthFull();
         NumberField amount = new NumberField("Сумма (млн)");
-        NumberField amountNoVat = new NumberField("Без НДС (млн)");
+        amount.setWidthFull();
+        NumberField amountNoVat = new NumberField("Сумма без НДС (млн)");
+        amountNoVat.setWidthFull();
         TextField subject = new TextField("Предмет договора");
-        TextField period = new TextField("Период (месяц)");
+        subject.setWidthFull();
+        ComboBox<String> period = new ComboBox<>("Период (месяц)");
+        period.setItems(monthOptions());
+        period.setAllowCustomValue(false);
+        period.setWidthFull();
         TextField pm = new TextField("Способ закупки");
+        pm.setWidthFull();
         com.vaadin.flow.component.checkbox.Checkbox input = new com.vaadin.flow.component.checkbox.Checkbox("Вводный объект");
+        input.setWidthFull();
 
         binder.bind(vgo, Request::getVgo, Request::setVgo);
         binder.forField(amount).bind(
@@ -209,13 +222,16 @@ public class RequestsView extends VerticalLayout {
     // === Wizard ===
     private void openWizard() {
         Dialog d = new Dialog("Создание заявки");
+        d.setWidth("600px");
 
         // step 1: choose CFO and MVZ
         ComboBox<Cfo> cfo = new ComboBox<>("ЦФО");
         cfo.setItems(cfoRepository.findAll());
         cfo.setItemLabelGenerator(Cfo::getName);
+        cfo.setWidthFull();
         ComboBox<Mvz> mvz = new ComboBox<>("МВЗ");
         mvz.setItemLabelGenerator(Mvz::getName);
+        mvz.setWidthFull();
         cfo.addValueChangeListener(e -> {
             if (e.getValue() != null) {
                 mvz.setItems(mvzRepository.findByCfoId(e.getValue().getId()));
@@ -229,10 +245,13 @@ public class RequestsView extends VerticalLayout {
         ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
         bdz.setItems(bdzService.findAll());
         bdz.setItemLabelGenerator(Bdz::getName);
+        bdz.setWidthFull();
         ComboBox<Bo> bo = new ComboBox<>("БО");
         bo.setItemLabelGenerator(Bo::getName);
+        bo.setWidthFull();
         TextField zgd = new TextField("ЗГД (автоподстановка)");
         zgd.setReadOnly(true);
+        zgd.setWidthFull();
         bdz.addValueChangeListener(e -> {
             if (e.getValue() != null) {
                 bo.setItems(boRepository.findByBdzId(e.getValue().getId()));
@@ -252,37 +271,58 @@ public class RequestsView extends VerticalLayout {
         ComboBox<Contract> contract = new ComboBox<>("Договор");
         contract.setItems(contractRepository.findAll());
         contract.setItemLabelGenerator(Contract::getName);
+        contract.setWidthFull();
 
         // step 4: remaining fields
         TextField vgo = new TextField("ВГО");
+        vgo.setWidthFull();
         NumberField amount = new NumberField("Сумма (млн)");
-        NumberField amountNoVat = new NumberField("Без НДС (млн)");
+        amount.setWidthFull();
+        NumberField amountNoVat = new NumberField("Сумма без НДС (млн)");
+        amountNoVat.setWidthFull();
         TextField subject = new TextField("Предмет договора");
-        TextField period = new TextField("Период (месяц)");
+        subject.setWidthFull();
+        ComboBox<String> period = new ComboBox<>("Период (месяц)");
+        period.setItems(monthOptions());
+        period.setAllowCustomValue(false);
+        period.setWidthFull();
         TextField pm = new TextField("Способ закупки");
+        pm.setWidthFull();
         com.vaadin.flow.component.checkbox.Checkbox input = new com.vaadin.flow.component.checkbox.Checkbox("Вводный объект");
+        input.setWidthFull();
 
         // simple step control
         Span step = new Span("Шаг 1 из 4");
         VerticalLayout step1 = new VerticalLayout(cfo, mvz);
         step1.setPadding(false);
         step1.setSpacing(false);
-        step1.setWidth("400px");
+        step1.setAlignItems(Alignment.STRETCH);
+        step1.setWidthFull();
+        step1.getStyle().set("row-gap", "var(--lumo-space-m)");
+        step1.getStyle().set("margin-bottom", "var(--lumo-space-m)");
 
         VerticalLayout step2 = new VerticalLayout(bdz, bo, zgd);
         step2.setPadding(false);
         step2.setSpacing(false);
-        step2.setWidth("400px");
+        step2.setAlignItems(Alignment.STRETCH);
+        step2.setWidthFull();
+        step2.getStyle().set("row-gap", "var(--lumo-space-m)");
+        step2.getStyle().set("margin-bottom", "var(--lumo-space-m)");
 
         VerticalLayout step3 = new VerticalLayout(contract);
         step3.setPadding(false);
         step3.setSpacing(false);
-        step3.setWidth("400px");
+        step3.setAlignItems(Alignment.STRETCH);
+        step3.setWidthFull();
+        step3.getStyle().set("row-gap", "var(--lumo-space-m)");
+        step3.getStyle().set("margin-bottom", "var(--lumo-space-m)");
 
         VerticalLayout step4 = new VerticalLayout(vgo, amount, amountNoVat, subject, period, pm, input);
         step4.setPadding(false);
         step4.setSpacing(false);
-        step4.setWidth("400px");
+        step4.setAlignItems(Alignment.STRETCH);
+        step4.setWidthFull();
+        step4.getStyle().set("row-gap", "var(--lumo-space-m)");
         step2.setVisible(false);
         step3.setVisible(false);
         step4.setVisible(false);
@@ -353,14 +393,34 @@ public class RequestsView extends VerticalLayout {
         HorizontalLayout actions = new HorizontalLayout(back, next, save, close);
         actions.setPadding(false);
         actions.setSpacing(true);
+        actions.setWidthFull();
+        actions.getStyle().set("margin-top", "var(--lumo-space-m)");
 
         VerticalLayout content = new VerticalLayout(step, step1, step2, step3, step4, actions);
         content.setPadding(false);
         content.setSpacing(false);
-        content.setAlignItems(Alignment.CENTER);
-        content.setWidth("400px");
+        content.setAlignItems(Alignment.STRETCH);
+        content.setWidthFull();
+        content.getStyle().set("max-width", "600px");
+        step.getStyle().set("align-self", "flex-start");
+        step.getStyle().set("margin-bottom", "var(--lumo-space-m)");
+        step.getStyle().set("font-weight", "600");
 
         d.add(content);
         d.open();
+    }
+
+    private List<String> monthOptions() {
+        Locale locale = new Locale("ru");
+        return Arrays.stream(Month.values())
+                .map(month -> capitalize(month.getDisplayName(TextStyle.FULL_STANDALONE, locale), locale))
+                .collect(Collectors.toList());
+    }
+
+    private String capitalize(String value, Locale locale) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        return value.substring(0, 1).toUpperCase(locale) + value.substring(1);
     }
 }
