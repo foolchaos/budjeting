@@ -3,6 +3,7 @@ package com.example.budget.ui;
 import com.example.budget.domain.*;
 import com.example.budget.repo.*;
 import com.example.budget.service.BdzService;
+import com.example.budget.service.BoService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
@@ -31,7 +32,7 @@ import java.util.function.BiFunction;
 public class ReferencesView extends SplitLayout {
 
     private final BdzService bdzService;
-    private final BoRepository boRepository;
+    private final BoService boService;
     private final ZgdRepository zgdRepository;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
@@ -40,11 +41,11 @@ public class ReferencesView extends SplitLayout {
     private final ListBox<String> leftMenu = new ListBox<>();
     private final Div rightPanel = new Div();
 
-    public ReferencesView(BdzService bdzService, BoRepository boRepository, ZgdRepository zgdRepository,
+    public ReferencesView(BdzService bdzService, BoService boService, ZgdRepository zgdRepository,
                           CfoRepository cfoRepository, MvzRepository mvzRepository,
                           ContractRepository contractRepository) {
         this.bdzService = bdzService;
-        this.boRepository = boRepository;
+        this.boService = boService;
         this.zgdRepository = zgdRepository;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
@@ -201,9 +202,9 @@ public class ReferencesView extends SplitLayout {
         grid.addColumn(item -> item.getBdz() != null ? item.getBdz().getName() : "—").setHeader("БДЗ");
 
         return genericGrid(Bo.class, grid,
-                () -> boRepository.findAll(),
-                boRepository::save,
-                boRepository::delete,
+                boService::findAll,
+                boService::save,
+                boService::delete,
                 (selected, refresh) -> {
                     Bo bean = selected != null ? selected : new Bo();
                     Dialog d = new Dialog("Статья БО");
@@ -217,8 +218,8 @@ public class ReferencesView extends SplitLayout {
                     binder.bind(name, Bo::getName, Bo::setName);
                     binder.bind(bdz, Bo::getBdz, Bo::setBdz);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { boRepository.save(binder.getBean()); refresh.run(); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) boRepository.delete(bean); refresh.run(); d.close(); });
+                    Button save = new Button("Сохранить", e -> { boService.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) boService.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name, bdz), new HorizontalLayout(save, del, close));
