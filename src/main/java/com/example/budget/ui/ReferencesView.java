@@ -134,7 +134,6 @@ addToPrimary(leftMenu);
             refreshBdz(tree);
             dlg.close();
         });
-        Button edit = new Button("Редактировать"); // форма редактируемая по умолчанию
         Button delete = new Button("Удалить", e -> {
             if (entity.getId() != null) {
                 bdzService.deleteById(entity.getId());
