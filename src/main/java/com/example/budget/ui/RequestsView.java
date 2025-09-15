@@ -14,6 +14,7 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
@@ -58,27 +59,71 @@ public class RequestsView extends VerticalLayout {
             reload();
         });
 
-        add(new HorizontalLayout(create, delete), grid);
-        setFlexGrow(1, grid);
+        Div gridWrapper = new Div(grid);
+        gridWrapper.setWidthFull();
+        gridWrapper.getStyle().set("overflow", "auto");
+
+        add(new HorizontalLayout(create, delete), gridWrapper);
+        setFlexGrow(1, gridWrapper);
         reload();
     }
 
     private void buildGrid() {
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
         grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
-        grid.addColumn(Request::getNumber).setHeader("Номер").setAutoWidth(true);
-        grid.addColumn(r -> r.getBdz()!=null ? r.getBdz().getName() : "—").setHeader("БДЗ");
-        grid.addColumn(r -> r.getCfo()!=null ? r.getCfo().getName() : "—").setHeader("ЦФО");
-        grid.addColumn(r -> r.getMvz()!=null ? r.getMvz().getName() : "—").setHeader("МВЗ");
-        grid.addColumn(Request::getVgo).setHeader("ВГО");
-        grid.addColumn(r -> r.getBo()!=null ? r.getBo().getName() : "—").setHeader("БО");
-        grid.addColumn(r -> r.getContract()!=null ? r.getContract().getName() : "—").setHeader("Контрагент");
-        grid.addColumn(r -> r.getAmount()!=null ? r.getAmount().toPlainString() : "—").setHeader("Сумма");
-        grid.addColumn(r -> r.getAmountNoVat()!=null ? r.getAmountNoVat().toPlainString() : "—").setHeader("Сумма без НДС");
-        grid.addColumn(Request::getSubject).setHeader("Предмет");
-        grid.addColumn(Request::getPeriod).setHeader("Период");
-        grid.addColumn(r -> r.isInputObject() ? "Да" : "Нет").setHeader("Вводный объект");
-        grid.addColumn(Request::getProcurementMethod).setHeader("Способ закупки");
+        grid.setWidthFull();
+        grid.addColumn(Request::getNumber)
+                .setHeader("Номер")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.getBdz() != null ? r.getBdz().getName() : "—")
+                .setHeader("БДЗ")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.getCfo() != null ? r.getCfo().getName() : "—")
+                .setHeader("ЦФО")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.getMvz() != null ? r.getMvz().getName() : "—")
+                .setHeader("МВЗ")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(Request::getVgo)
+                .setHeader("ВГО")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.getBo() != null ? r.getBo().getName() : "—")
+                .setHeader("БО")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.getContract() != null ? r.getContract().getName() : "—")
+                .setHeader("Контрагент")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.getAmount() != null ? r.getAmount().toPlainString() : "—")
+                .setHeader("Сумма")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.getAmountNoVat() != null ? r.getAmountNoVat().toPlainString() : "—")
+                .setHeader("Сумма без НДС")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(Request::getSubject)
+                .setHeader("Предмет")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(Request::getPeriod)
+                .setHeader("Период")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(r -> r.isInputObject() ? "Да" : "Нет")
+                .setHeader("Вводный объект")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        grid.addColumn(Request::getProcurementMethod)
+                .setHeader("Способ закупки")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
 
         grid.addItemClickListener(e -> openCard(e.getItem()));
     }
