@@ -1,2 +1,33 @@
-# budjeting
-test
+# Budget Requests App
+
+Технологии: Java 21, Spring Boot 3.3, Vaadin 24, PostgreSQL, Maven, Docker.
+
+## Запуск (Docker, production режим Vaadin)
+```bash
+docker compose up --build
+```
+Приложение будет доступно на http://localhost:8080
+
+## Локальный запуск (dev)
+1) Запустить PostgreSQL (например, через Docker) и выставить переменные окружения `APP_DB_URL`, `APP_DB_USER`, `APP_DB_PASS` при необходимости.
+2) Запуск:
+```bash
+./mvnw spring-boot:run
+```
+или
+```bash
+mvn spring-boot:run
+```
+
+## Сборка prod-jar c фронтендом Vaadin
+```bash
+mvn -Pproduction clean package
+```
+Получится `target/budget-vaadin-app-0.1.0.jar`.
+
+## Учет требований (кратко)
+- Вкладки «Справочники» и «Заявки» (по умолчанию открыта «Справочники»).
+- БДЗ: TreeGrid c чекбоксами у каждого узла, карточка сущности, CRUD.
+- Прочие справочники: Grid + карточка сущности, CRUD, групповое удаление.
+- «Заявки»: таблица с заданными колонками и фильтрами; карточка; мастер создания (3 шага).
+- Каскадные удаления и «отвязка» заявок реализованы в сервисах удаления.
