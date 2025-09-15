@@ -25,6 +25,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 @Component
 @UIScope
@@ -154,7 +155,7 @@ addToPrimary(leftMenu);
                                            java.util.function.Supplier<List<T>> loader,
                                            java.util.function.Function<T, T> saver,
                                            java.util.function.Consumer<T> deleter,
-                                           java.util.function.Function<T, Dialog> editorFactory) {
+                                           BiFunction<T, Runnable, Dialog> editorFactory) {
         VerticalLayout layout = new VerticalLayout();
         layout.setSizeFull();
         Button create = new Button("Создать");
@@ -165,14 +166,18 @@ addToPrimary(leftMenu);
         grid.setItems(provider);
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
         grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
-        grid.addItemClickListener(e -> editorFactory.apply(e.getItem()).open());
 
-        create.addClickListener(e -> editorFactory.apply(null).open());
-        delete.addClickListener(e -> {
-            grid.getSelectedItems().forEach(deleter);
+        Runnable refresh = () -> {
             provider.getItems().clear();
             provider.getItems().addAll(loader.get());
             provider.refreshAll();
+        };
+
+        grid.addItemClickListener(e -> editorFactory.apply(e.getItem(), refresh).open());
+        create.addClickListener(e -> editorFactory.apply(null, refresh).open());
+        delete.addClickListener(e -> {
+            grid.getSelectedItems().forEach(deleter);
+            refresh.run();
         });
 
         layout.add(new HorizontalLayout(create, delete), grid);
@@ -190,7 +195,7 @@ addToPrimary(leftMenu);
                 () -> boRepository.findAll(),
                 boRepository::save,
                 boRepository::delete,
-                selected -> {
+                (selected, refresh) -> {
                     Bo bean = selected != null ? selected : new Bo();
                     Dialog d = new Dialog("Статья БО");
                     Binder<Bo> binder = new Binder<>(Bo.class);
@@ -203,8 +208,8 @@ addToPrimary(leftMenu);
                     binder.bind(name, Bo::getName, Bo::setName);
                     binder.bind(bdz, Bo::getBdz, Bo::setBdz);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { boRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) boRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { boRepository.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) boRepository.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name, bdz), new HorizontalLayout(save, del, close));
@@ -222,7 +227,7 @@ addToPrimary(leftMenu);
                 () -> zgdRepository.findAll(),
                 zgdRepository::save,
                 zgdRepository::delete,
-                selected -> {
+                (selected, refresh) -> {
                     Zgd bean = selected != null ? selected : new Zgd();
                     Dialog d = new Dialog("Курирующий ЗГД");
                     Binder<Zgd> binder = new Binder<>(Zgd.class);
@@ -237,8 +242,8 @@ addToPrimary(leftMenu);
                     binder.bind(bdz, Zgd::getBdz, Zgd::setBdz);
                     binder.setBean(bean);
 
-                    Button save = new Button("Сохранить", e -> { zgdRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) zgdRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { zgdRepository.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) zgdRepository.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(fio, dep, bdz), new HorizontalLayout(save, del, close));
@@ -255,7 +260,7 @@ addToPrimary(leftMenu);
                 () -> cfoRepository.findAll(),
                 cfoRepository::save,
                 cfoRepository::delete,
-                selected -> {
+                (selected, refresh) -> {
                     Cfo bean = selected != null ? selected : new Cfo();
                     Dialog d = new Dialog("ЦФО");
                     Binder<Cfo> binder = new Binder<>(Cfo.class);
@@ -264,8 +269,8 @@ addToPrimary(leftMenu);
                     binder.bind(code, Cfo::getCode, Cfo::setCode);
                     binder.bind(name, Cfo::getName, Cfo::setName);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { cfoRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) cfoRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { cfoRepository.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) cfoRepository.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name), new HorizontalLayout(save, del, close));
@@ -283,7 +288,7 @@ addToPrimary(leftMenu);
                 () -> mvzRepository.findAll(),
                 mvzRepository::save,
                 mvzRepository::delete,
-                selected -> {
+                (selected, refresh) -> {
                     Mvz bean = selected != null ? selected : new Mvz();
                     Dialog d = new Dialog("МВЗ");
                     Binder<Mvz> binder = new Binder<>(Mvz.class);
@@ -296,8 +301,8 @@ addToPrimary(leftMenu);
                     binder.bind(name, Mvz::getName, Mvz::setName);
                     binder.bind(cfo, Mvz::getCfo, Mvz::setCfo);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { mvzRepository.save(binder.getBean()); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) mvzRepository.delete(bean); d.close(); });
+                    Button save = new Button("Сохранить", e -> { mvzRepository.save(binder.getBean()); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) mvzRepository.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name, cfo), new HorizontalLayout(save, del, close));
@@ -317,7 +322,7 @@ addToPrimary(leftMenu);
                 () -> contractRepository.findAll(),
                 contractRepository::save,
                 contractRepository::delete,
-                selected -> {
+                (selected, refresh) -> {
                     Contract bean = selected != null ? selected : new Contract();
                     Dialog d = new Dialog("Договор");
                     Binder<Contract> binder = new Binder<>(Contract.class);
@@ -339,13 +344,14 @@ addToPrimary(leftMenu);
                                 bean.setContractDate(java.time.LocalDate.parse(date.getValue()));
                             }
                             contractRepository.save(bean);
+                            refresh.run();
                             d.close();
                         } catch (Exception ex) {
                             date.setInvalid(true);
                             date.setErrorMessage("Неверный формат даты");
                         }
                     });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractRepository.delete(bean); d.close(); });
+                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractRepository.delete(bean); refresh.run(); d.close(); });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(name, inum, exnum, date, resp), new HorizontalLayout(save, del, close));
