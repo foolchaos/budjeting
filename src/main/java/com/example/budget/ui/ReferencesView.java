@@ -36,9 +36,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -255,16 +255,29 @@ public class ReferencesView extends SplitLayout {
     }
 
     private boolean matchesBdzFilters(Bdz item, String codeFilter, String nameFilter) {
-        boolean codeMatches = codeFilter == null || (item.getCode() != null && item.getCode().equalsIgnoreCase(codeFilter));
-        boolean nameMatches = nameFilter == null || (item.getName() != null && item.getName().equalsIgnoreCase(nameFilter));
+        boolean codeMatches = containsIgnoreCase(item.getCode(), codeFilter);
+        boolean nameMatches = containsIgnoreCase(item.getName(), nameFilter);
         return codeMatches && nameMatches;
     }
 
-    private boolean matchesBoFilters(Bo item, String codeFilter, String nameFilter, Long bdzIdFilter) {
-        boolean codeMatches = codeFilter == null || (item.getCode() != null && item.getCode().equalsIgnoreCase(codeFilter));
-        boolean nameMatches = nameFilter == null || (item.getName() != null && item.getName().equalsIgnoreCase(nameFilter));
-        boolean bdzMatches = bdzIdFilter == null || (item.getBdz() != null && Objects.equals(item.getBdz().getId(), bdzIdFilter));
-        return codeMatches && nameMatches && bdzMatches;
+    private boolean matchesBoFilters(Bo item, String codeFilter, String nameFilter, String bdzFilter) {
+        if (!containsIgnoreCase(item.getCode(), codeFilter)) {
+            return false;
+        }
+        if (!containsIgnoreCase(item.getName(), nameFilter)) {
+            return false;
+        }
+
+        if (bdzFilter == null) {
+            return true;
+        }
+
+        if (item.getBdz() == null) {
+            return false;
+        }
+
+        return containsIgnoreCase(item.getBdz().getCode(), bdzFilter)
+                || containsIgnoreCase(item.getBdz().getName(), bdzFilter);
     }
 
     private Div columnHeaderWithFilter(String title, com.vaadin.flow.component.Component filter) {
@@ -292,6 +305,18 @@ public class ReferencesView extends SplitLayout {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean containsIgnoreCase(String value, String filter) {
+        if (filter == null) {
+            return true;
+        }
+        if (value == null) {
+            return false;
+        }
+        String normalizedValue = value.toLowerCase(Locale.ROOT);
+        String normalizedFilter = filter.toLowerCase(Locale.ROOT);
+        return normalizedValue.contains(normalizedFilter);
     }
 
     private void openBdzCard(Bdz entity, Runnable refresh) {
@@ -466,13 +491,8 @@ public class ReferencesView extends SplitLayout {
         nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
         nameFilter.setClearButtonVisible(true);
 
-        ComboBox<Bdz> bdzFilter = new ComboBox<>();
-        bdzFilter.setItems(bdzService.findAll());
-        bdzFilter.setItemLabelGenerator(b -> {
-            String code = b.getCode() != null ? b.getCode() : "";
-            String name = b.getName() != null ? b.getName() : "";
-            return (code + " " + name).trim();
-        });
+        TextField bdzFilter = new TextField();
+        bdzFilter.setValueChangeMode(ValueChangeMode.EAGER);
         bdzFilter.setClearButtonVisible(true);
 
         grid.addColumn(Bo::getCode)
@@ -492,11 +512,9 @@ public class ReferencesView extends SplitLayout {
         Supplier<List<Bo>> loader = () -> {
             String codeValue = trimToNull(codeFilter.getValue());
             String nameValue = trimToNull(nameFilter.getValue());
-            Long bdzId = Optional.ofNullable(bdzFilter.getValue())
-                    .map(Bdz::getId)
-                    .orElse(null);
+            String bdzValue = trimToNull(bdzFilter.getValue());
             return boService.findAll().stream()
-                    .filter(item -> matchesBoFilters(item, codeValue, nameValue, bdzId))
+                    .filter(item -> matchesBoFilters(item, codeValue, nameValue, bdzValue))
                     .toList();
         };
 
