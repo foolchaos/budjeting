@@ -30,6 +30,7 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -329,6 +330,40 @@ public class ReferencesView extends SplitLayout {
 
         return containsNormalized(item.getCfo().getCode(), normalizedCfoFilter)
                 || containsNormalized(item.getCfo().getName(), normalizedCfoFilter);
+    }
+
+    private boolean matchesContractFilters(Contract item,
+                                           String normalizedNameFilter,
+                                           String normalizedInternalNumberFilter,
+                                           String normalizedExternalNumberFilter,
+                                           String normalizedResponsibleFilter,
+                                           LocalDate fromDateFilter,
+                                           LocalDate toDateFilter) {
+        if (!containsNormalized(item.getName(), normalizedNameFilter)) {
+            return false;
+        }
+        if (!containsNormalized(item.getInternalNumber(), normalizedInternalNumberFilter)) {
+            return false;
+        }
+        if (!containsNormalized(item.getExternalNumber(), normalizedExternalNumberFilter)) {
+            return false;
+        }
+        if (!containsNormalized(item.getResponsible(), normalizedResponsibleFilter)) {
+            return false;
+        }
+
+        LocalDate date = item.getContractDate();
+        if (fromDateFilter != null) {
+            if (date == null || date.isBefore(fromDateFilter)) {
+                return false;
+            }
+        }
+        if (toDateFilter != null) {
+            if (date == null || date.isAfter(toDateFilter)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Div columnHeaderWithFilter(String title, com.vaadin.flow.component.Component filter) {
@@ -918,14 +953,72 @@ public class ReferencesView extends SplitLayout {
 
     private VerticalLayout contractGrid() {
         Grid<Contract> grid = new Grid<>(Contract.class, false);
-        grid.addColumn(Contract::getName).setHeader("Наименование");
-        grid.addColumn(Contract::getInternalNumber).setHeader("№ внутренний");
-        grid.addColumn(Contract::getExternalNumber).setHeader("№ внешний");
-        grid.addColumn(c -> c.getContractDate() != null ? c.getContractDate().toString() : "—").setHeader("Дата");
-        grid.addColumn(Contract::getResponsible).setHeader("Ответственный");
 
-        return genericGrid(Contract.class, grid,
-                contractService::findAll,
+        TextField nameFilter = new TextField();
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
+        TextField internalNumberFilter = new TextField();
+        internalNumberFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        internalNumberFilter.setClearButtonVisible(true);
+
+        TextField externalNumberFilter = new TextField();
+        externalNumberFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        externalNumberFilter.setClearButtonVisible(true);
+
+        DatePicker fromDateFilter = new DatePicker();
+        fromDateFilter.setPlaceholder("От");
+        fromDateFilter.setClearButtonVisible(true);
+        fromDateFilter.setWidthFull();
+        fromDateFilter.getElement().getStyle().set("minWidth", "0");
+
+        DatePicker toDateFilter = new DatePicker();
+        toDateFilter.setPlaceholder("До");
+        toDateFilter.setClearButtonVisible(true);
+        toDateFilter.setWidthFull();
+        toDateFilter.getElement().getStyle().set("minWidth", "0");
+
+        HorizontalLayout dateFilters = new HorizontalLayout(fromDateFilter, toDateFilter);
+        dateFilters.setWidthFull();
+        dateFilters.setSpacing(false);
+        dateFilters.setPadding(false);
+        dateFilters.setAlignItems(Alignment.STRETCH);
+        dateFilters.getStyle().set("gap", "var(--lumo-space-xs)");
+        dateFilters.setFlexGrow(1, fromDateFilter, toDateFilter);
+
+        TextField responsibleFilter = new TextField();
+        responsibleFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        responsibleFilter.setClearButtonVisible(true);
+
+        grid.addColumn(Contract::getName)
+                .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
+        grid.addColumn(Contract::getInternalNumber)
+                .setHeader(columnHeaderWithFilter("№ внутренний", internalNumberFilter));
+        grid.addColumn(Contract::getExternalNumber)
+                .setHeader(columnHeaderWithFilter("№ внешний", externalNumberFilter));
+        grid.addColumn(item -> item.getContractDate() != null ? item.getContractDate().toString() : "—")
+                .setHeader(columnHeaderWithFilter("Дата", dateFilters));
+        grid.addColumn(Contract::getResponsible)
+                .setHeader(columnHeaderWithFilter("Ответственный", responsibleFilter));
+
+        Supplier<List<Contract>> loader = () -> {
+            String nameValue = normalizeFilterValue(nameFilter.getValue());
+            String internalValue = normalizeFilterValue(internalNumberFilter.getValue());
+            String externalValue = normalizeFilterValue(externalNumberFilter.getValue());
+            String responsibleValue = normalizeFilterValue(responsibleFilter.getValue());
+            LocalDate fromDate = fromDateFilter.getValue();
+            LocalDate toDate = toDateFilter.getValue();
+
+            return contractService.findAll().stream()
+                    .filter(item -> matchesContractFilters(item, nameValue, internalValue, externalValue,
+                            responsibleValue, fromDate, toDate))
+                    .toList();
+        };
+
+        Runnable[] refreshHolder = new Runnable[1];
+
+        VerticalLayout layout = genericGrid(Contract.class, grid,
+                loader,
                 contractService::save,
                 contractService::delete,
                 (selected, refresh) -> {
@@ -951,14 +1044,56 @@ public class ReferencesView extends SplitLayout {
 
                     Button save = new Button("Сохранить", e -> {
                         contractService.save(binder.getBean());
-                        refresh.run();
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
                         d.close();
                     });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) contractService.delete(bean); refresh.run(); d.close(); });
+                    Button del = new Button("Удалить", e -> {
+                        if (bean.getId() != null) {
+                            contractService.delete(bean);
+                        }
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(name, inum, exnum, date, resp), new HorizontalLayout(save, del, close));
                     return d;
-                });
+                },
+                refresh -> refreshHolder[0] = refresh);
+
+        nameFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        internalNumberFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        externalNumberFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        fromDateFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        toDateFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        responsibleFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+
+        return layout;
     }
 }
