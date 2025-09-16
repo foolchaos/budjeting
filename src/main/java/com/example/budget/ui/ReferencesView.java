@@ -1039,9 +1039,7 @@ public class ReferencesView extends SplitLayout {
                         }
                     });
 
-                    context.actions().setWidthFull();
-                    upload.getStyle().set("margin-left", "auto");
-                    context.actions().add(upload);
+                    context.actions().addComponentAtIndex(0, upload);
                 });
 
         codeFilter.addValueChangeListener(e -> {
