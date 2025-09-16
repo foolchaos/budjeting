@@ -25,13 +25,19 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.data.binder.Binder;
+import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -100,6 +106,14 @@ public class ReferencesView extends SplitLayout {
         tree.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
         tree.setHeightFull();
 
+        TextField codeFilter = new TextField("Код");
+        codeFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        codeFilter.setClearButtonVisible(true);
+
+        TextField nameFilter = new TextField("Наименование");
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
         Select<Integer> pageSizeSelect = new Select<>();
         pageSizeSelect.setLabel("Строк на странице");
         pageSizeSelect.setItems(5, 10, 25, 50);
@@ -111,13 +125,15 @@ public class ReferencesView extends SplitLayout {
 
         List<Bdz> roots = new ArrayList<>();
         final int[] currentPage = {0};
+        Map<Long, List<Bdz>> filteredChildren = new HashMap<>();
+        AtomicBoolean filteredMode = new AtomicBoolean(false);
 
         Runnable updatePage = () -> {
             int pageSize = pageSizeSelect.getValue();
             int total = roots.size();
 
             if (total == 0) {
-                tree.setItems(Collections.emptyList(), b -> bdzService.findChildren(b.getId()));
+                tree.setItems(Collections.emptyList(), b -> Collections.emptyList());
                 pageInfo.setText("0 из 0");
                 prev.setEnabled(false);
                 next.setEnabled(false);
@@ -131,7 +147,13 @@ public class ReferencesView extends SplitLayout {
 
             int from = currentPage[0] * pageSize;
             int to = Math.min(from + pageSize, total);
-            tree.setItems(roots.subList(from, to), b -> bdzService.findChildren(b.getId()));
+            List<Bdz> pageItems = new ArrayList<>(roots.subList(from, to));
+            if (filteredMode.get()) {
+                tree.setItems(pageItems, b -> filteredChildren.getOrDefault(b.getId(), List.of()));
+                tree.expandRecursively(pageItems, Integer.MAX_VALUE);
+            } else {
+                tree.setItems(pageItems, b -> bdzService.findChildren(b.getId()));
+            }
             pageInfo.setText(String.format("%d–%d из %d", from + 1, to, total));
 
             prev.setEnabled(currentPage[0] > 0);
@@ -140,7 +162,43 @@ public class ReferencesView extends SplitLayout {
 
         Runnable reload = () -> {
             roots.clear();
-            roots.addAll(bdzService.findRoots());
+            filteredChildren.clear();
+            String codeValue = trimToNull(codeFilter.getValue());
+            String nameValue = trimToNull(nameFilter.getValue());
+            boolean hasFilter = (codeValue != null) || (nameValue != null);
+
+            if (!hasFilter) {
+                filteredMode.set(false);
+                roots.addAll(bdzService.findRoots());
+            } else {
+                filteredMode.set(true);
+                List<Bdz> allItems = bdzService.findAll();
+                Set<Long> includedIds = new LinkedHashSet<>();
+
+                for (Bdz item : allItems) {
+                    if (matchesBdzFilters(item, codeValue, nameValue)) {
+                        Bdz current = item;
+                        while (current != null && current.getId() != null) {
+                            includedIds.add(current.getId());
+                            current = current.getParent();
+                        }
+                    }
+                }
+
+                Set<Long> seen = new LinkedHashSet<>();
+                for (Bdz item : allItems) {
+                    Long id = item.getId();
+                    if (id == null || !includedIds.contains(id) || !seen.add(id)) {
+                        continue;
+                    }
+                    Bdz parent = item.getParent();
+                    if (parent == null || parent.getId() == null || !includedIds.contains(parent.getId())) {
+                        roots.add(item);
+                    } else {
+                        filteredChildren.computeIfAbsent(parent.getId(), k -> new ArrayList<>()).add(item);
+                    }
+                }
+            }
             currentPage[0] = 0;
             updatePage.run();
         };
@@ -176,16 +234,37 @@ public class ReferencesView extends SplitLayout {
             reload.run();
         });
 
+        codeFilter.addValueChangeListener(e -> reload.run());
+        nameFilter.addValueChangeListener(e -> reload.run());
+
         HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
         pagination.setAlignItems(Alignment.CENTER);
         pagination.setWidthFull();
         pageInfo.getStyle().set("margin-left", "auto");
         pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
 
-        layout.add(new HorizontalLayout(create, delete), tree, pagination);
+        HorizontalLayout filterLayout = new HorizontalLayout(codeFilter, nameFilter);
+        filterLayout.setWidthFull();
+        filterLayout.setAlignItems(Alignment.END);
+
+        layout.add(new HorizontalLayout(create, delete), filterLayout, tree, pagination);
         layout.setFlexGrow(1, tree);
         reload.run();
         return layout;
+    }
+
+    private boolean matchesBdzFilters(Bdz item, String codeFilter, String nameFilter) {
+        boolean codeMatches = codeFilter == null || (item.getCode() != null && item.getCode().equalsIgnoreCase(codeFilter));
+        boolean nameMatches = nameFilter == null || (item.getName() != null && item.getName().equalsIgnoreCase(nameFilter));
+        return codeMatches && nameMatches;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void openBdzCard(Bdz entity, Runnable refresh) {
