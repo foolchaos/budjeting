@@ -280,6 +280,29 @@ public class ReferencesView extends SplitLayout {
                 || containsNormalized(item.getBdz().getName(), normalizedBdzFilter);
     }
 
+    private boolean matchesZgdFilters(Zgd item,
+                                      String normalizedFullNameFilter,
+                                      String normalizedDepartmentFilter,
+                                      String normalizedBdzFilter) {
+        if (!containsNormalized(item.getFullName(), normalizedFullNameFilter)) {
+            return false;
+        }
+        if (!containsNormalized(item.getDepartment(), normalizedDepartmentFilter)) {
+            return false;
+        }
+
+        if (normalizedBdzFilter == null) {
+            return true;
+        }
+
+        if (item.getBdz() == null) {
+            return false;
+        }
+
+        return containsNormalized(item.getBdz().getCode(), normalizedBdzFilter)
+                || containsNormalized(item.getBdz().getName(), normalizedBdzFilter);
+    }
+
     private Div columnHeaderWithFilter(String title, com.vaadin.flow.component.Component filter) {
         Div wrapper = new Div();
         wrapper.getStyle().set("display", "flex");
@@ -587,12 +610,46 @@ public class ReferencesView extends SplitLayout {
 
     private VerticalLayout zgdGrid() {
         Grid<Zgd> grid = new Grid<>(Zgd.class, false);
-        grid.addColumn(Zgd::getFullName).setHeader("ФИО");
-        grid.addColumn(Zgd::getDepartment).setHeader("Департамент");
-        grid.addColumn(item -> item.getBdz() != null ? item.getBdz().getName() : "—").setHeader("БДЗ");
 
-        return genericGrid(Zgd.class, grid,
-                zgdService::findAll,
+        TextField fullNameFilter = new TextField();
+        fullNameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        fullNameFilter.setClearButtonVisible(true);
+
+        TextField departmentFilter = new TextField();
+        departmentFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        departmentFilter.setClearButtonVisible(true);
+
+        TextField bdzFilter = new TextField();
+        bdzFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        bdzFilter.setClearButtonVisible(true);
+
+        grid.addColumn(Zgd::getFullName)
+                .setHeader(columnHeaderWithFilter("ФИО", fullNameFilter));
+        grid.addColumn(Zgd::getDepartment)
+                .setHeader(columnHeaderWithFilter("Департамент", departmentFilter));
+        grid.addColumn(item -> {
+            if (item.getBdz() == null) {
+                return "—";
+            }
+            Bdz bdz = item.getBdz();
+            String code = bdz.getCode() != null ? bdz.getCode() : "";
+            String name = bdz.getName() != null ? bdz.getName() : "";
+            return (code + " " + name).trim();
+        }).setHeader(columnHeaderWithFilter("БДЗ", bdzFilter));
+
+        Supplier<List<Zgd>> loader = () -> {
+            String fullNameValue = normalizeFilterValue(fullNameFilter.getValue());
+            String departmentValue = normalizeFilterValue(departmentFilter.getValue());
+            String bdzValue = normalizeFilterValue(bdzFilter.getValue());
+            return zgdService.findAll().stream()
+                    .filter(item -> matchesZgdFilters(item, fullNameValue, departmentValue, bdzValue))
+                    .toList();
+        };
+
+        Runnable[] refreshHolder = new Runnable[1];
+
+        VerticalLayout layout = genericGrid(Zgd.class, grid,
+                loader,
                 zgdService::save,
                 zgdService::delete,
                 (selected, refresh) -> {
@@ -603,20 +660,56 @@ public class ReferencesView extends SplitLayout {
                     TextField dep = new TextField("Департамент");
                     ComboBox<Bdz> bdz = new ComboBox<>("Статья БДЗ");
                     bdz.setItems(bdzService.findAll());
-                    bdz.setItemLabelGenerator(Bdz::getName);
+                    bdz.setItemLabelGenerator(item -> {
+                        String code = item.getCode() != null ? item.getCode() : "";
+                        String name = item.getName() != null ? item.getName() : "";
+                        return (code + " " + name).trim();
+                    });
+                    bdz.setClearButtonVisible(true);
 
                     binder.bind(fio, Zgd::getFullName, Zgd::setFullName);
                     binder.bind(dep, Zgd::getDepartment, Zgd::setDepartment);
                     binder.bind(bdz, Zgd::getBdz, Zgd::setBdz);
                     binder.setBean(bean);
 
-                    Button save = new Button("Сохранить", e -> { zgdService.save(binder.getBean()); refresh.run(); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) zgdService.delete(bean); refresh.run(); d.close(); });
+                    Button save = new Button("Сохранить", e -> {
+                        zgdService.save(binder.getBean());
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
+                    Button del = new Button("Удалить", e -> {
+                        if (bean.getId() != null) {
+                            zgdService.delete(bean);
+                        }
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(fio, dep, bdz), new HorizontalLayout(save, del, close));
                     return d;
-                });
+                },
+                refresh -> refreshHolder[0] = refresh);
+
+        fullNameFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        departmentFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        bdzFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+
+        return layout;
     }
 
     private VerticalLayout cfoGrid() {
