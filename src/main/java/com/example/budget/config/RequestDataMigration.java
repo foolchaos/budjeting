@@ -115,11 +115,11 @@ public class RequestDataMigration implements ApplicationRunner {
                 REQUEST_FK_NAME
         );
         if (!Boolean.TRUE.equals(exists)) {
-            jdbcTemplate.execute("""
-                    ALTER TABLE " + REQUEST_TABLE + "
-                    ADD CONSTRAINT " + REQUEST_FK_NAME + "
-                    FOREIGN KEY (request_id) REFERENCES " + REQUEST_HEADER_TABLE + "(id)
-                    """);
+            jdbcTemplate.execute(
+                    "ALTER TABLE " + REQUEST_TABLE
+                            + " ADD CONSTRAINT " + REQUEST_FK_NAME
+                            + " FOREIGN KEY (request_id) REFERENCES " + REQUEST_HEADER_TABLE + "(id)"
+            );
         }
     }
 
