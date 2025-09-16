@@ -53,28 +53,28 @@ public class CfoTwoService {
     }
 
     @Transactional
-    public CfoImportResult importFromXlsx(Path file) {
+    public ExcelImportResult importFromXlsx(Path file) {
         try {
             if (Files.notExists(file)) {
-                throw new CfoImportException("Файл импорта не найден");
+                throw new ExcelImportException("Файл импорта не найден");
             }
             long size = Files.size(file);
             if (size > MAX_IMPORT_FILE_SIZE) {
-                throw new CfoImportException("Размер файла превышает 10 МБ");
+                throw new ExcelImportException("Размер файла превышает 10 МБ");
             }
 
             try (OPCPackage pkg = OPCPackage.open(file.toFile())) {
                 return readWorkbook(pkg);
             }
-        } catch (CfoImportException e) {
+        } catch (ExcelImportException e) {
             throw e;
         } catch (IOException | OpenXML4JException | SAXException e) {
-            throw new CfoImportException("Не удалось обработать файл импорта", e);
+            throw new ExcelImportException("Не удалось обработать файл импорта", e);
         }
     }
 
     @Transactional
-    public CfoImportResult importFromXlsx(InputStream inputStream) {
+    public ExcelImportResult importFromXlsx(InputStream inputStream) {
         try {
             Path temp = Files.createTempFile("cfo-two-import", ".xlsx");
             try (var out = Files.newOutputStream(temp)) {
@@ -86,17 +86,17 @@ public class CfoTwoService {
                 Files.deleteIfExists(temp);
             }
         } catch (IOException e) {
-            throw new CfoImportException("Не удалось прочитать файл импорта", e);
+            throw new ExcelImportException("Не удалось прочитать файл импорта", e);
         }
     }
 
-    private CfoImportResult readWorkbook(OPCPackage pkg) throws IOException, OpenXML4JException, SAXException {
+    private ExcelImportResult readWorkbook(OPCPackage pkg) throws IOException, OpenXML4JException, SAXException {
         XSSFReader reader = new XSSFReader(pkg);
         StylesTable styles = reader.getStylesTable();
         SharedStrings sharedStrings = reader.getSharedStringsTable();
         XSSFReader.SheetIterator sheets = (XSSFReader.SheetIterator) reader.getSheetsData();
         if (!sheets.hasNext()) {
-            throw new CfoImportException("В файле нет ни одного листа");
+            throw new ExcelImportException("В файле нет ни одного листа");
         }
 
         Map<String, CfoTwo> existingByCode = new HashMap<>();
@@ -130,7 +130,7 @@ public class CfoTwoService {
                     return;
                 }
                 if (rowNum > MAX_IMPORT_ROWS) {
-                    throw new CfoImportException("Файл содержит больше 50 000 строк");
+                    throw new ExcelImportException("Файл содержит больше 50 000 строк");
                 }
 
                 ensureSize(currentRow, 2);
@@ -140,10 +140,10 @@ public class CfoTwoService {
                     return;
                 }
                 if (rawCode == null || rawCode.isBlank()) {
-                    throw new CfoImportException("Строка " + (rowNum + 1) + ": не указан код ЦФО II");
+                    throw new ExcelImportException("Строка " + (rowNum + 1) + ": не указан код ЦФО II");
                 }
                 if (rawName == null || rawName.isBlank()) {
-                    throw new CfoImportException("Строка " + (rowNum + 1) + ": не указано наименование ЦФО II");
+                    throw new ExcelImportException("Строка " + (rowNum + 1) + ": не указано наименование ЦФО II");
                 }
 
                 String code = rawCode.trim();
@@ -192,19 +192,19 @@ public class CfoTwoService {
             DataFormatter formatter = new DataFormatter(Locale.getDefault());
             parser.setContentHandler(new XSSFSheetXMLHandler(styles, sharedStrings, handler, formatter, false));
             parser.parse(new InputSource(sheetStream));
-        } catch (CfoImportException e) {
+        } catch (ExcelImportException e) {
             throw e;
         } catch (SAXException e) {
-            if (e.getCause() instanceof CfoImportException cie) {
+            if (e.getCause() instanceof ExcelImportException cie) {
                 throw cie;
             }
             throw e;
         } catch (javax.xml.parsers.ParserConfigurationException e) {
-            throw new CfoImportException("Не удалось инициализировать парсер XLSX", e);
+            throw new ExcelImportException("Не удалось инициализировать парсер XLSX", e);
         }
 
         flushBatch(batch, batchCodes, existingByCode);
-        return new CfoImportResult(created.get(), updated.get(), processed.get());
+        return new ExcelImportResult(created.get(), updated.get(), processed.get());
     }
 
     private void flushBatch(List<CfoTwo> batch, Set<String> batchCodes, Map<String, CfoTwo> cache) {
@@ -226,7 +226,7 @@ public class CfoTwoService {
         String codeHeader = header.get(0) != null ? header.get(0).trim() : "";
         String nameHeader = header.get(1) != null ? header.get(1).trim() : "";
         if (!"Код".equalsIgnoreCase(codeHeader) || !"Наименование".equalsIgnoreCase(nameHeader)) {
-            throw new CfoImportException("Некорректный заголовок файла. Первые два столбца должны быть 'Код' и 'Наименование'.");
+            throw new ExcelImportException("Некорректный заголовок файла. Первые два столбца должны быть 'Код' и 'Наименование'.");
         }
     }
 

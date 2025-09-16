@@ -4,8 +4,8 @@ import com.example.budget.domain.*;
 import com.example.budget.repo.*;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.BoService;
-import com.example.budget.service.CfoImportException;
-import com.example.budget.service.CfoImportResult;
+import com.example.budget.service.ExcelImportException;
+import com.example.budget.service.ExcelImportResult;
 import com.example.budget.service.CfoService;
 import com.example.budget.service.CfoTwoService;
 import com.example.budget.service.ContractService;
@@ -61,7 +61,7 @@ import java.util.function.Supplier;
 @UIScope
 public class ReferencesView extends SplitLayout {
 
-    private static final long CFO_IMPORT_MAX_SIZE = 10 * 1024 * 1024L;
+    private static final long IMPORT_MAX_FILE_SIZE = 10 * 1024 * 1024L;
 
     private final BdzService bdzService;
     private final BoService boService;
@@ -123,6 +123,25 @@ public class ReferencesView extends SplitLayout {
         Button create = new Button("Создать");
         Button delete = new Button("Удалить выбранные");
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
+
+        final FileBuffer importBuffer = new FileBuffer();
+        Upload importUpload = new Upload(importBuffer);
+        importUpload.setAcceptedFileTypes(".xlsx");
+        importUpload.setMaxFiles(1);
+        importUpload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
+        importUpload.setDropAllowed(false);
+        importUpload.setAutoUpload(true);
+        importUpload.getStyle().set("padding", "0");
+        Button importButton = new Button("Импорт");
+        importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        importUpload.setUploadButton(importButton);
+
+        UploadI18N importI18n = new UploadI18N();
+        importI18n.setError(new UploadI18N.Error()
+                .setFileIsTooBig("Файл превышает 10 МБ")
+                .setIncorrectFileType("Неверный тип файла. Ожидается .xlsx")
+                .setTooManyFiles("Можно загрузить только один файл"));
+        importUpload.setI18n(importI18n);
 
         TreeGrid<Bdz> tree = new TreeGrid<>();
         tree.setSelectionMode(Grid.SelectionMode.MULTI);
@@ -280,13 +299,43 @@ public class ReferencesView extends SplitLayout {
         nameFilter.addValueChangeListener(e -> reload.run());
         cfoFilter.addValueChangeListener(e -> reload.run());
 
+        importUpload.addFileRejectedListener(event ->
+                showErrorNotification(event.getErrorMessage()));
+        importUpload.addFailedListener(event ->
+                showErrorNotification("Загрузка файла прервана"));
+        importUpload.addSucceededListener(event -> {
+            Path tempFile = importBuffer.getFileData().getFile().toPath();
+            try {
+                ExcelImportResult result = bdzService.importFromXlsx(tempFile);
+                showSuccessNotification(String.format(
+                        "Импорт БДЗ завершён: создано %d, обновлено %d, обработано %d",
+                        result.created(), result.updated(), result.processed()));
+                reload.run();
+            } catch (ExcelImportException ex) {
+                showErrorNotification(ex.getMessage());
+            } catch (Exception ex) {
+                showErrorNotification("Не удалось импортировать файл");
+            } finally {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                }
+                importUpload.clearFileList();
+            }
+        });
+
         HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
         pagination.setAlignItems(Alignment.CENTER);
         pagination.setWidthFull();
         pageInfo.getStyle().set("margin-left", "auto");
         pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
 
-        layout.add(new HorizontalLayout(create, delete), tree, pagination);
+        HorizontalLayout actions = new HorizontalLayout(create, delete, importUpload);
+        actions.setAlignItems(Alignment.CENTER);
+        actions.setWidthFull();
+        importUpload.getStyle().set("margin-left", "auto");
+
+        layout.add(actions, tree, pagination);
         layout.setFlexGrow(1, tree);
         reload.run();
         return layout;
@@ -945,7 +994,7 @@ public class ReferencesView extends SplitLayout {
                     Upload upload = new Upload(buffer);
                     upload.setAcceptedFileTypes(".xlsx");
                     upload.setMaxFiles(1);
-                    upload.setMaxFileSize((int) CFO_IMPORT_MAX_SIZE);
+                    upload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
                     upload.setDropAllowed(false);
                     upload.setAutoUpload(true);
                     upload.getStyle().set("padding", "0");
@@ -967,7 +1016,7 @@ public class ReferencesView extends SplitLayout {
                     upload.addSucceededListener(event -> {
                         Path tempFile = buffer.getFileData().getFile().toPath();
                         try {
-                            CfoImportResult result = cfoService.importFromXlsx(tempFile);
+                            ExcelImportResult result = cfoService.importFromXlsx(tempFile);
                             showSuccessNotification(String.format(
                                     "Импорт завершён: создано %d, обновлено %d, обработано %d",
                                     result.created(), result.updated(), result.processed()));
@@ -977,7 +1026,7 @@ public class ReferencesView extends SplitLayout {
                             if (targetRefresh != null) {
                                 targetRefresh.run();
                             }
-                        } catch (CfoImportException ex) {
+                        } catch (ExcelImportException ex) {
                             showErrorNotification(ex.getMessage());
                         } catch (Exception ex) {
                             showErrorNotification("Не удалось импортировать файл");
@@ -990,9 +1039,7 @@ public class ReferencesView extends SplitLayout {
                         }
                     });
 
-                    context.actions().setWidthFull();
-                    upload.getStyle().set("margin-left", "auto");
-                    context.actions().add(upload);
+                    context.actions().addComponentAtIndex(0, upload);
                 });
 
         codeFilter.addValueChangeListener(e -> {
@@ -1073,7 +1120,7 @@ public class ReferencesView extends SplitLayout {
                     Upload upload = new Upload(buffer);
                     upload.setAcceptedFileTypes(".xlsx");
                     upload.setMaxFiles(1);
-                    upload.setMaxFileSize((int) CFO_IMPORT_MAX_SIZE);
+                    upload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
                     upload.setDropAllowed(false);
                     upload.setAutoUpload(true);
                     upload.getStyle().set("padding", "0");
@@ -1095,7 +1142,7 @@ public class ReferencesView extends SplitLayout {
                     upload.addSucceededListener(event -> {
                         Path tempFile = buffer.getFileData().getFile().toPath();
                         try {
-                            CfoImportResult result = cfoTwoService.importFromXlsx(tempFile);
+                            ExcelImportResult result = cfoTwoService.importFromXlsx(tempFile);
                             showSuccessNotification(String.format(
                                     "Импорт ЦФО II завершён: создано %d, обновлено %d, обработано %d",
                                     result.created(), result.updated(), result.processed()));
@@ -1105,7 +1152,7 @@ public class ReferencesView extends SplitLayout {
                             if (targetRefresh != null) {
                                 targetRefresh.run();
                             }
-                        } catch (CfoImportException ex) {
+                        } catch (ExcelImportException ex) {
                             showErrorNotification(ex.getMessage());
                         } catch (Exception ex) {
                             showErrorNotification("Не удалось импортировать файл");
