@@ -3,6 +3,7 @@ package com.example.budget.domain;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
 import java.time.LocalDate;
 
 @Entity
@@ -22,6 +23,10 @@ public class Contract {
     @NotBlank
     private String responsible; // ФИО
 
+    @ManyToOne
+    @JoinColumn(name = "counterparty_id")
+    private Counterparty counterparty;
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -33,4 +38,6 @@ public class Contract {
     public void setContractDate(LocalDate contractDate) { this.contractDate = contractDate; }
     public String getResponsible() { return responsible; }
     public void setResponsible(String responsible) { this.responsible = responsible; }
+    public Counterparty getCounterparty() { return counterparty; }
+    public void setCounterparty(Counterparty counterparty) { this.counterparty = counterparty; }
 }

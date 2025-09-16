@@ -6,6 +6,7 @@ import com.example.budget.repo.BoRepository;
 import com.example.budget.repo.CfoTwoRepository;
 import com.example.budget.repo.MvzRepository;
 import com.example.budget.repo.ContractRepository;
+import com.example.budget.repo.CounterpartyRepository;
 import com.example.budget.service.RequestService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -49,6 +50,7 @@ public class RequestsView extends VerticalLayout {
     private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
+    private final CounterpartyRepository counterpartyRepository;
 
     private final Grid<Request> grid = new Grid<>(Request.class, false);
     private final List<Request> allRequests = new ArrayList<>();
@@ -61,13 +63,15 @@ public class RequestsView extends VerticalLayout {
 
     public RequestsView(RequestService requestService, BdzService bdzService,
                         BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
-                        MvzRepository mvzRepository, ContractRepository contractRepository) {
+                        MvzRepository mvzRepository, ContractRepository contractRepository,
+                        CounterpartyRepository counterpartyRepository) {
         this.requestService = requestService;
         this.bdzService = bdzService;
         this.boRepository = boRepository;
         this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
+        this.counterpartyRepository = counterpartyRepository;
 
         setSizeFull();
         buildGrid();
@@ -121,6 +125,10 @@ public class RequestsView extends VerticalLayout {
                 .setAutoWidth(true)
                 .setFlexGrow(1);
         grid.addColumn(r -> r.getContract() != null ? r.getContract().getName() : "—")
+                .setHeader("Договор")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
+        grid.addColumn(r -> r.getCounterparty() != null ? r.getCounterparty().getLegalEntityName() : "—")
                 .setHeader("Контрагент")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
@@ -268,6 +276,7 @@ public class RequestsView extends VerticalLayout {
                         entry("Подразделение", detailed.getZgd() != null ? detailed.getZgd().getDepartment() : null)
                 ),
                 infoSection("Договор",
+                        entry("Контрагент", detailed.getCounterparty() != null ? detailed.getCounterparty().getLegalEntityName() : null),
                         entry("Наименование", detailed.getContract() != null ? detailed.getContract().getName() : null),
                         entry("Внутренний номер", detailed.getContract() != null ? detailed.getContract().getInternalNumber() : null),
                         entry("Внешний номер", detailed.getContract() != null ? detailed.getContract().getExternalNumber() : null),
@@ -389,20 +398,38 @@ public class RequestsView extends VerticalLayout {
         binder.forField(bdz).bind(Request::getBdz, Request::setBdz);
         binder.forField(bo).bind(Request::getBo, Request::setBo);
 
+        ComboBox<Counterparty> counterparty = new ComboBox<>("Контрагент");
+        List<Counterparty> counterpartyItems = new ArrayList<>(counterpartyRepository.findAll());
+        if (bean.getCounterparty() != null) {
+            Counterparty selectedCounterparty = findById(counterpartyItems, Counterparty::getId,
+                    bean.getCounterparty().getId());
+            if (selectedCounterparty != null) {
+                bean.setCounterparty(selectedCounterparty);
+            } else {
+                counterpartyItems.add(bean.getCounterparty());
+            }
+        }
+        counterparty.setItems(counterpartyItems);
+        counterparty.setItemLabelGenerator(Counterparty::getLegalEntityName);
+        counterparty.setWidthFull();
+        counterparty.setClearButtonVisible(true);
+
         ComboBox<Contract> contract = new ComboBox<>("Договор");
-        List<Contract> contractItems = new ArrayList<>(contractRepository.findAll());
+        List<Contract> allContracts = new ArrayList<>(contractRepository.findAll());
         if (bean.getContract() != null) {
-            Contract selectedContract = findById(contractItems, Contract::getId, bean.getContract().getId());
+            Contract selectedContract = findById(allContracts, Contract::getId, bean.getContract().getId());
             if (selectedContract != null) {
                 bean.setContract(selectedContract);
             } else {
-                contractItems.add(bean.getContract());
+                allContracts.add(bean.getContract());
             }
         }
-        contract.setItems(contractItems);
         contract.setItemLabelGenerator(Contract::getName);
         contract.setWidthFull();
         contract.setClearButtonVisible(true);
+        contract.setEnabled(false);
+
+        binder.forField(counterparty).bind(Request::getCounterparty, Request::setCounterparty);
         binder.forField(contract).bind(Request::getContract, Request::setContract);
 
         TextField vgo = new TextField("ВГО");
@@ -440,7 +467,88 @@ public class RequestsView extends VerticalLayout {
         input.setWidthFull();
         binder.bind(input, Request::isInputObject, Request::setInputObject);
 
+        Runnable updateContractItems = () -> {
+            Counterparty selected = counterparty.getValue();
+            Contract currentContract = contract.getValue();
+            if (selected == null || selected.getId() == null) {
+                contract.setItems(List.of());
+                if (currentContract != null) {
+                    contract.clear();
+                }
+                contract.setEnabled(false);
+                return;
+            }
+
+            List<Contract> filtered = allContracts.stream()
+                    .filter(item -> item.getCounterparty() != null && item.getCounterparty().getId() != null
+                            && item.getCounterparty().getId().equals(selected.getId()))
+                    .collect(Collectors.toCollection(ArrayList::new));
+
+            if (currentContract != null) {
+                boolean present = filtered.stream().anyMatch(item -> item.getId().equals(currentContract.getId()));
+                if (!present && currentContract.getCounterparty() != null
+                        && currentContract.getCounterparty().getId() != null
+                        && currentContract.getCounterparty().getId().equals(selected.getId())) {
+                    filtered.add(currentContract);
+                }
+            }
+
+            contract.setItems(filtered);
+
+            if (currentContract != null && currentContract.getCounterparty() != null
+                    && currentContract.getCounterparty().getId() != null
+                    && !currentContract.getCounterparty().getId().equals(selected.getId())) {
+                contract.clear();
+            }
+
+            contract.setEnabled(true);
+        };
+
+        counterparty.addValueChangeListener(e -> {
+            updateContractItems.run();
+            if (e.getValue() == null) {
+                contract.clear();
+            }
+        });
+
+        contract.addValueChangeListener(e -> {
+            Contract selectedContract = e.getValue();
+            if (selectedContract != null && selectedContract.getCounterparty() != null) {
+                Counterparty contractCounterparty = selectedContract.getCounterparty();
+                if (contractCounterparty.getId() != null) {
+                    boolean present = counterpartyItems.stream()
+                            .anyMatch(item -> item.getId().equals(contractCounterparty.getId()));
+                    if (!present) {
+                        counterpartyItems.add(contractCounterparty);
+                        counterparty.setItems(counterpartyItems);
+                    }
+                }
+                if (counterparty.getValue() == null || contractCounterparty.getId() != null
+                        && !contractCounterparty.getId().equals(counterparty.getValue().getId())) {
+                    counterparty.setValue(contractCounterparty);
+                }
+            }
+        });
+
         binder.setBean(bean);
+
+        if (contract.getValue() != null && contract.getValue().getCounterparty() != null) {
+            Counterparty contractCounterparty = contract.getValue().getCounterparty();
+            if (contractCounterparty.getId() != null) {
+                boolean present = counterpartyItems.stream()
+                        .anyMatch(item -> item.getId().equals(contractCounterparty.getId()));
+                if (!present) {
+                    counterpartyItems.add(contractCounterparty);
+                    counterparty.setItems(counterpartyItems);
+                }
+            }
+            if (counterparty.getValue() == null) {
+                counterparty.setValue(contractCounterparty);
+            }
+        }
+
+        updateContractItems.run();
+        contract.setEnabled(counterparty.getValue() != null);
 
         if (bean.getBdz() != null) {
             List<Bo> boItems = boRepository.findByBdzId(bean.getBdz().getId());
@@ -468,7 +576,7 @@ public class RequestsView extends VerticalLayout {
         Span stepIndicator = new Span("Шаг 1 из 4");
         VerticalLayout step1 = stepLayout(cfo, mvz);
         VerticalLayout step2 = stepLayout(bdz, bo, zgd);
-        VerticalLayout step3 = stepLayout(contract);
+        VerticalLayout step3 = stepLayout(counterparty, contract);
         VerticalLayout step4 = stepLayout(vgo, amount, amountNoVat, subject, period, pm, input);
         step2.setVisible(false);
         step3.setVisible(false);

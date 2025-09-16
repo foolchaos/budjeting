@@ -28,6 +28,10 @@ public class Request {
     @JoinColumn(name = "mvz_id")
     private Mvz mvz;
 
+    @OneToOne
+    @JoinColumn(name = "counterparty_id", unique = true)
+    private Counterparty counterparty;
+
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "contract_id", unique = true)
     private Contract contract;
@@ -65,6 +69,8 @@ public class Request {
     public void setCfo2(CfoTwo cfo2) { this.cfo2 = cfo2; }
     public Mvz getMvz() { return mvz; }
     public void setMvz(Mvz mvz) { this.mvz = mvz; }
+    public Counterparty getCounterparty() { return counterparty; }
+    public void setCounterparty(Counterparty counterparty) { this.counterparty = counterparty; }
     public Contract getContract() { return contract; }
     public void setContract(Contract contract) { this.contract = contract; }
     public Bo getBo() { return bo; }

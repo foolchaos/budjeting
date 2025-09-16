@@ -9,6 +9,7 @@ import com.example.budget.service.ExcelImportResult;
 import com.example.budget.service.CfoService;
 import com.example.budget.service.CfoTwoService;
 import com.example.budget.service.ContractService;
+import com.example.budget.service.CounterpartyService;
 import com.example.budget.service.ZgdService;
 import com.vaadin.flow.component.HasSize;
 import com.vaadin.flow.component.button.Button;
@@ -72,13 +73,14 @@ public class ReferencesView extends SplitLayout {
     private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractService contractService;
+    private final CounterpartyService counterpartyService;
 
     private final ListBox<String> leftMenu = new ListBox<>();
     private final Div rightPanel = new Div();
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
                           CfoService cfoService, CfoTwoService cfoTwoService, CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
-                          MvzRepository mvzRepository, ContractService contractService) {
+                          MvzRepository mvzRepository, ContractService contractService, CounterpartyService counterpartyService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdService = zgdService;
@@ -88,9 +90,10 @@ public class ReferencesView extends SplitLayout {
         this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractService = contractService;
+        this.counterpartyService = counterpartyService;
 
         setSizeFull();
-        leftMenu.setItems("ЦФО I", "ЦФО II", "БДЗ", "БО", "ЗГД", "МВЗ", "Договор");
+        leftMenu.setItems("ЦФО I", "ЦФО II", "БДЗ", "БО", "ЗГД", "МВЗ", "Контрагент", "Договор");
         leftMenu.setValue("ЦФО I");
         leftMenu.addValueChangeListener(e -> renderRight(e.getValue()));
 
@@ -112,6 +115,7 @@ public class ReferencesView extends SplitLayout {
             case "БО" -> rightPanel.add(boGrid());
             case "ЗГД" -> rightPanel.add(zgdGrid());
             case "МВЗ" -> rightPanel.add(mvzGrid());
+            case "Контрагент" -> rightPanel.add(counterpartyGrid());
             case "Договор" -> rightPanel.add(contractGrid());
         }
     }
@@ -1288,6 +1292,68 @@ public class ReferencesView extends SplitLayout {
         return layout;
     }
 
+    private VerticalLayout counterpartyGrid() {
+        Grid<Counterparty> grid = new Grid<>(Counterparty.class, false);
+
+        TextField nameFilter = new TextField();
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
+        grid.addColumn(Counterparty::getLegalEntityName)
+                .setHeader(columnHeaderWithFilter("Наименование юридического лица", nameFilter));
+
+        Supplier<List<Counterparty>> loader = () -> {
+            String nameValue = normalizeFilterValue(nameFilter.getValue());
+            return counterpartyService.findAll().stream()
+                    .filter(item -> matchesFilter(item.getLegalEntityName(), nameValue))
+                    .toList();
+        };
+
+        Runnable[] refreshHolder = new Runnable[1];
+
+        VerticalLayout layout = genericGrid(Counterparty.class, grid,
+                loader,
+                counterpartyService::save,
+                counterpartyService::delete,
+                (selected, refresh) -> {
+                    Counterparty bean = selected != null ? selected : new Counterparty();
+                    Dialog d = new Dialog("Контрагент");
+                    Binder<Counterparty> binder = new Binder<>(Counterparty.class);
+                    TextField name = new TextField("Наименование юридического лица");
+                    name.setWidthFull();
+                    binder.forField(name).bind(Counterparty::getLegalEntityName, Counterparty::setLegalEntityName);
+                    binder.setBean(bean);
+
+                    Button save = new Button("Сохранить", e -> {
+                        counterpartyService.save(binder.getBean());
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
+                    Button del = new Button("Удалить", e -> {
+                        if (bean.getId() != null) {
+                            counterpartyService.delete(bean);
+                        }
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
+                    del.addThemeVariants(ButtonVariant.LUMO_ERROR);
+                    Button close = new Button("Закрыть", e -> d.close());
+                    d.add(new FormLayout(name), new HorizontalLayout(save, del, close));
+                    return d;
+                },
+                refresh -> refreshHolder[0] = refresh);
+
+        nameFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+
+        return layout;
+    }
+
     private VerticalLayout contractGrid() {
         Grid<Contract> grid = new Grid<>(Contract.class, false);
 
@@ -1327,6 +1393,10 @@ public class ReferencesView extends SplitLayout {
         responsibleFilter.setValueChangeMode(ValueChangeMode.EAGER);
         responsibleFilter.setClearButtonVisible(true);
 
+        TextField counterpartyFilter = new TextField();
+        counterpartyFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        counterpartyFilter.setClearButtonVisible(true);
+
         grid.addColumn(Contract::getName)
                 .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
         grid.addColumn(Contract::getInternalNumber)
@@ -1337,18 +1407,23 @@ public class ReferencesView extends SplitLayout {
                 .setHeader(columnHeaderWithFilter("Дата", dateFilters));
         grid.addColumn(Contract::getResponsible)
                 .setHeader(columnHeaderWithFilter("Ответственный", responsibleFilter));
+        grid.addColumn(item -> item.getCounterparty() != null ? item.getCounterparty().getLegalEntityName() : "—")
+                .setHeader(columnHeaderWithFilter("Контрагент", counterpartyFilter));
 
         Supplier<List<Contract>> loader = () -> {
             String nameValue = normalizeFilterValue(nameFilter.getValue());
             String internalValue = normalizeFilterValue(internalNumberFilter.getValue());
             String externalValue = normalizeFilterValue(externalNumberFilter.getValue());
             String responsibleValue = normalizeFilterValue(responsibleFilter.getValue());
+            String counterpartyValue = normalizeFilterValue(counterpartyFilter.getValue());
             LocalDate fromDate = fromDateFilter.getValue();
             LocalDate toDate = toDateFilter.getValue();
 
             return contractService.findAll().stream()
                     .filter(item -> matchesContractFilters(item, nameValue, internalValue, externalValue,
                             responsibleValue, fromDate, toDate))
+                    .filter(item -> matchesFilter(item.getCounterparty() != null ?
+                            item.getCounterparty().getLegalEntityName() : null, counterpartyValue))
                     .toList();
         };
 
@@ -1367,6 +1442,19 @@ public class ReferencesView extends SplitLayout {
                     TextField exnum = new TextField("№ внешний");
                     DatePicker date = new DatePicker("Дата");
                     TextField resp = new TextField("Ответственный (ФИО)");
+                    ComboBox<Counterparty> counterparty = new ComboBox<>("Контрагент");
+                    List<Counterparty> counterpartyItems = new ArrayList<>(counterpartyService.findAll());
+                    if (bean.getCounterparty() != null && bean.getCounterparty().getId() != null) {
+                        boolean present = counterpartyItems.stream()
+                                .anyMatch(item -> item.getId().equals(bean.getCounterparty().getId()));
+                        if (!present) {
+                            counterpartyItems.add(bean.getCounterparty());
+                        }
+                    }
+                    counterparty.setItems(counterpartyItems);
+                    counterparty.setItemLabelGenerator(Counterparty::getLegalEntityName);
+                    counterparty.setClearButtonVisible(true);
+                    counterparty.setWidthFull();
 
                     if (bean.getContractDate() != null) {
                         date.setValue(bean.getContractDate());
@@ -1377,6 +1465,7 @@ public class ReferencesView extends SplitLayout {
                     binder.bind(exnum, Contract::getExternalNumber, Contract::setExternalNumber);
                     binder.bind(date, Contract::getContractDate, Contract::setContractDate);
                     binder.bind(resp, Contract::getResponsible, Contract::setResponsible);
+                    binder.bind(counterparty, Contract::getCounterparty, Contract::setCounterparty);
                     binder.setBean(bean);
 
                     Button save = new Button("Сохранить", e -> {
@@ -1395,7 +1484,7 @@ public class ReferencesView extends SplitLayout {
                     });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
-                    d.add(new FormLayout(name, inum, exnum, date, resp), new HorizontalLayout(save, del, close));
+                    d.add(new FormLayout(name, inum, exnum, date, resp, counterparty), new HorizontalLayout(save, del, close));
                     return d;
                 },
                 refresh -> refreshHolder[0] = refresh);
@@ -1426,6 +1515,11 @@ public class ReferencesView extends SplitLayout {
             }
         });
         responsibleFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        counterpartyFilter.addValueChangeListener(e -> {
             if (refreshHolder[0] != null) {
                 refreshHolder[0].run();
             }
