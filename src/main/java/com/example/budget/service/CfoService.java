@@ -12,7 +12,7 @@ import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.xssf.eventusermodel.XSSFReader;
 import org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler;
-import org.apache.poi.xssf.model.SharedStringsTable;
+import org.apache.poi.xssf.model.SharedStrings;
 import org.apache.poi.xssf.model.StylesTable;
 import org.apache.poi.xssf.usermodel.XSSFComment;
 import org.springframework.stereotype.Service;
@@ -116,7 +116,7 @@ public class CfoService {
     private CfoImportResult readWorkbook(OPCPackage pkg) throws IOException, OpenXML4JException, SAXException {
         XSSFReader reader = new XSSFReader(pkg);
         StylesTable styles = reader.getStylesTable();
-        SharedStringsTable sharedStrings = reader.getSharedStringsTable();
+        SharedStrings sharedStrings = reader.getSharedStringsTable();
         XSSFReader.SheetIterator sheets = (XSSFReader.SheetIterator) reader.getSheetsData();
         if (!sheets.hasNext()) {
             throw new CfoImportException("В файле нет ни одного листа");
