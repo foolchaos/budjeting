@@ -2,11 +2,14 @@ package com.example.budget.ui;
 
 import com.example.budget.domain.*;
 import com.example.budget.repo.*;
+import com.example.budget.service.BdzImportException;
+import com.example.budget.service.BdzImportService;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.BoService;
 import com.example.budget.service.ContractService;
 import com.example.budget.service.ZgdService;
 import com.vaadin.flow.component.HasSize;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
@@ -25,12 +28,24 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.Notification.Position;
+import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.spring.annotation.UIScope;
+import com.vaadin.flow.server.UIDetachedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,6 +56,7 @@ import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -48,25 +64,29 @@ import java.util.function.Supplier;
 @UIScope
 public class ReferencesView extends SplitLayout {
 
+    private static final Logger log = LoggerFactory.getLogger(ReferencesView.class);
+
     private final BdzService bdzService;
     private final BoService boService;
     private final ZgdService zgdService;
     private final CfoRepository cfoRepository;
     private final MvzRepository mvzRepository;
     private final ContractService contractService;
+    private final BdzImportService bdzImportService;
 
     private final ListBox<String> leftMenu = new ListBox<>();
     private final Div rightPanel = new Div();
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
                           CfoRepository cfoRepository, MvzRepository mvzRepository,
-                          ContractService contractService) {
+                          ContractService contractService, BdzImportService bdzImportService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdService = zgdService;
         this.cfoRepository = cfoRepository;
         this.mvzRepository = mvzRepository;
         this.contractService = contractService;
+        this.bdzImportService = bdzImportService;
 
         setSizeFull();
         leftMenu.setItems("БДЗ", "БО", "ЗГД", "ЦФО", "МВЗ", "Договор");
@@ -243,16 +263,99 @@ public class ReferencesView extends SplitLayout {
         codeFilter.addValueChangeListener(e -> reload.run());
         nameFilter.addValueChangeListener(e -> reload.run());
 
+        Upload importUpload = createBdzImportUpload(reload);
+        HorizontalLayout actions = new HorizontalLayout(importUpload, create, delete);
+        actions.setAlignItems(Alignment.BASELINE);
+
         HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
         pagination.setAlignItems(Alignment.CENTER);
         pagination.setWidthFull();
         pageInfo.getStyle().set("margin-left", "auto");
         pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
 
-        layout.add(new HorizontalLayout(create, delete), tree, pagination);
+        layout.add(actions, tree, pagination);
         layout.setFlexGrow(1, tree);
         reload.run();
         return layout;
+    }
+
+    private Upload createBdzImportUpload(Runnable reload) {
+        Upload upload = new Upload();
+        upload.setAcceptedFileTypes(".xlsx");
+        upload.setMaxFiles(1);
+        upload.setDropAllowed(false);
+        upload.setMaxFileSize(10 * 1024 * 1024);
+        upload.setUploadButton(new Button("Импорт из Excel"));
+        upload.addFileRejectedListener(event -> {
+            String message = event.getErrorMessage();
+            if (message == null || message.isBlank()) {
+                message = "Файл не принят к импорту.";
+            }
+            Notification.show(message, 6000, Position.MIDDLE);
+            upload.clearFileList();
+        });
+        upload.addFailedListener(event -> {
+            Throwable reason = event.getReason();
+            String message = reason != null && reason.getMessage() != null
+                    ? reason.getMessage()
+                    : "Ошибка загрузки файла.";
+            Notification.show("Загрузка не завершена: " + message, 6000, Position.MIDDLE);
+            upload.clearFileList();
+        });
+        upload.setReceiver((fileName, mimeType) -> startBdzImport(upload, reload));
+        return upload;
+    }
+
+    private OutputStream startBdzImport(Upload upload, Runnable reload) {
+        UI ui = upload.getUI().orElse(null);
+        if (ui == null) {
+            return OutputStream.nullOutputStream();
+        }
+        try {
+            PipedOutputStream outputStream = new PipedOutputStream();
+            PipedInputStream inputStream = new PipedInputStream(outputStream, 64 * 1024);
+            CompletableFuture.runAsync(() -> {
+                safeAccess(ui, () -> upload.setEnabled(false));
+                try (InputStream data = inputStream) {
+                    BdzImportService.ImportResult result = bdzImportService.importFromExcel(data);
+                    safeAccess(ui, () -> {
+                        Notification.show(String.format(
+                                "Импорт завершён: добавлено %d, обновлено %d, всего %d.",
+                                result.created(), result.updated(), result.total()),
+                                6000, Position.MIDDLE);
+                        reload.run();
+                    });
+                } catch (BdzImportException ex) {
+                    log.warn("Ошибка импорта БДЗ: {}", ex.getMessage());
+                    safeAccess(ui, () -> Notification.show(ex.getMessage(), 7000, Position.MIDDLE));
+                } catch (Exception ex) {
+                    log.error("Не удалось импортировать БДЗ", ex);
+                    String message = ex.getMessage();
+                    if (message == null || message.isBlank()) {
+                        message = "Неизвестная ошибка. Подробности в журнале.";
+                    }
+                    String finalMessage = message;
+                    safeAccess(ui, () -> Notification.show(
+                            "Не удалось импортировать файл: " + finalMessage,
+                            7000, Position.MIDDLE));
+                } finally {
+                    safeAccess(ui, () -> {
+                        upload.clearFileList();
+                        upload.setEnabled(true);
+                    });
+                }
+            });
+            return outputStream;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Не удалось подготовить поток импорта", e);
+        }
+    }
+
+    private void safeAccess(UI ui, Runnable command) {
+        try {
+            ui.access(command);
+        } catch (UIDetachedException ignored) {
+        }
     }
 
     private boolean matchesBdzFilters(Bdz item, String normalizedCodeFilter, String normalizedNameFilter) {
