@@ -16,17 +16,19 @@ public class RequestService {
     private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
+    private final CounterpartyRepository counterpartyRepository;
     private final ZgdRepository zgdRepository;
 
     public RequestService(RequestRepository requestRepository, BoRepository boRepository, BdzRepository bdzRepository,
                           CfoTwoRepository cfoTwoRepository, MvzRepository mvzRepository, ContractRepository contractRepository,
-                          ZgdRepository zgdRepository) {
+                          CounterpartyRepository counterpartyRepository, ZgdRepository zgdRepository) {
         this.requestRepository = requestRepository;
         this.boRepository = boRepository;
         this.bdzRepository = bdzRepository;
         this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
+        this.counterpartyRepository = counterpartyRepository;
         this.zgdRepository = zgdRepository;
     }
 
@@ -42,6 +44,7 @@ public class RequestService {
             if (r.getCfo2() != null) Hibernate.initialize(r.getCfo2());
             if (r.getMvz() != null) Hibernate.initialize(r.getMvz());
             if (r.getContract() != null) Hibernate.initialize(r.getContract());
+            if (r.getCounterparty() != null) Hibernate.initialize(r.getCounterparty());
             if (r.getZgd() != null) Hibernate.initialize(r.getZgd());
         });
         return list;
@@ -69,6 +72,9 @@ public class RequestService {
         if (request.getContract() != null) {
             Hibernate.initialize(request.getContract());
         }
+        if (request.getCounterparty() != null) {
+            Hibernate.initialize(request.getCounterparty());
+        }
         if (request.getZgd() != null) {
             Hibernate.initialize(request.getZgd());
         }
@@ -93,6 +99,12 @@ public class RequestService {
             Contract managedContract = contractRepository.findById(contractId)
                     .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
             r.setContract(managedContract);
+        }
+        if (r.getCounterparty() != null && r.getCounterparty().getId() != null) {
+            Long counterpartyId = r.getCounterparty().getId();
+            Counterparty managedCounterparty = counterpartyRepository.findById(counterpartyId)
+                    .orElseThrow(() -> new IllegalArgumentException("Counterparty not found: " + counterpartyId));
+            r.setCounterparty(managedCounterparty);
         }
         if (r.getZgd() != null && r.getZgd().getId() != null) {
             r.setZgd(zgdRepository.getReferenceById(r.getZgd().getId()));

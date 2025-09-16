@@ -10,4 +10,6 @@ public interface RequestRepository extends JpaRepository<Request, Long> {
     List<Request> findByContractId(Long contractId);
 
     List<Request> findByZgdId(Long zgdId);
+
+    List<Request> findByCounterpartyId(Long counterpartyId);
 }
