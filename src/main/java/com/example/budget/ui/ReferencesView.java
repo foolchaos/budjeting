@@ -52,6 +52,7 @@ public class ReferencesView extends SplitLayout {
     private final BoService boService;
     private final ZgdService zgdService;
     private final CfoRepository cfoRepository;
+    private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractService contractService;
 
@@ -59,18 +60,19 @@ public class ReferencesView extends SplitLayout {
     private final Div rightPanel = new Div();
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
-                          CfoRepository cfoRepository, MvzRepository mvzRepository,
-                          ContractService contractService) {
+                          CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
+                          MvzRepository mvzRepository, ContractService contractService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdService = zgdService;
         this.cfoRepository = cfoRepository;
+        this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractService = contractService;
 
         setSizeFull();
-        leftMenu.setItems("БДЗ", "БО", "ЗГД", "ЦФО", "МВЗ", "Договор");
-        leftMenu.setValue("БДЗ");
+        leftMenu.setItems("ЦФО I", "ЦФО II", "БДЗ", "БО", "ЗГД", "МВЗ", "Договор");
+        leftMenu.setValue("ЦФО I");
         leftMenu.addValueChangeListener(e -> renderRight(e.getValue()));
 
         rightPanel.setSizeFull();
@@ -79,16 +81,17 @@ public class ReferencesView extends SplitLayout {
         addToPrimary(leftMenu);
         addToSecondary(rightPanel);
 
-        renderRight("БДЗ");
+        renderRight("ЦФО I");
     }
 
     private void renderRight(String name) {
         rightPanel.removeAll();
         switch (name) {
+            case "ЦФО I" -> rightPanel.add(cfoOneGrid());
+            case "ЦФО II" -> rightPanel.add(cfoTwoGrid());
             case "БДЗ" -> rightPanel.add(bdzTree());
             case "БО" -> rightPanel.add(boGrid());
             case "ЗГД" -> rightPanel.add(zgdGrid());
-            case "ЦФО" -> rightPanel.add(cfoGrid());
             case "МВЗ" -> rightPanel.add(mvzGrid());
             case "Договор" -> rightPanel.add(contractGrid());
         }
@@ -115,10 +118,23 @@ public class ReferencesView extends SplitLayout {
         nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
         nameFilter.setClearButtonVisible(true);
 
+        TextField cfoFilter = new TextField();
+        cfoFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        cfoFilter.setClearButtonVisible(true);
+
         tree.addHierarchyColumn(Bdz::getCode)
                 .setHeader(columnHeaderWithFilter("Код", codeFilter));
         tree.addColumn(Bdz::getName)
                 .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
+        tree.addColumn(item -> {
+            Cfo cfo = item.getCfo();
+            if (cfo == null) {
+                return "—";
+            }
+            String code = cfo.getCode() != null ? cfo.getCode() : "";
+            String name = cfo.getName() != null ? cfo.getName() : "";
+            return (code + " " + name).trim();
+        }).setHeader(columnHeaderWithFilter("ЦФО I", cfoFilter));
 
         Select<Integer> pageSizeSelect = new Select<>();
         pageSizeSelect.setLabel("Строк на странице");
@@ -171,7 +187,8 @@ public class ReferencesView extends SplitLayout {
             filteredChildren.clear();
             String codeValue = normalizeFilterValue(codeFilter.getValue());
             String nameValue = normalizeFilterValue(nameFilter.getValue());
-            boolean hasFilter = (codeValue != null) || (nameValue != null);
+            String cfoValue = normalizeFilterValue(cfoFilter.getValue());
+            boolean hasFilter = (codeValue != null) || (nameValue != null) || (cfoValue != null);
 
             if (!hasFilter) {
                 filteredMode.set(false);
@@ -182,7 +199,7 @@ public class ReferencesView extends SplitLayout {
                 Set<Long> includedIds = new LinkedHashSet<>();
 
                 for (Bdz item : allItems) {
-                    if (matchesBdzFilters(item, codeValue, nameValue)) {
+                    if (matchesBdzFilters(item, codeValue, nameValue, cfoValue)) {
                         Bdz current = item;
                         while (current != null && current.getId() != null) {
                             includedIds.add(current.getId());
@@ -242,6 +259,7 @@ public class ReferencesView extends SplitLayout {
 
         codeFilter.addValueChangeListener(e -> reload.run());
         nameFilter.addValueChangeListener(e -> reload.run());
+        cfoFilter.addValueChangeListener(e -> reload.run());
 
         HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
         pagination.setAlignItems(Alignment.CENTER);
@@ -255,10 +273,22 @@ public class ReferencesView extends SplitLayout {
         return layout;
     }
 
-    private boolean matchesBdzFilters(Bdz item, String normalizedCodeFilter, String normalizedNameFilter) {
+    private boolean matchesBdzFilters(Bdz item,
+                                      String normalizedCodeFilter,
+                                      String normalizedNameFilter,
+                                      String normalizedCfoFilter) {
         boolean codeMatches = containsNormalized(item.getCode(), normalizedCodeFilter);
         boolean nameMatches = containsNormalized(item.getName(), normalizedNameFilter);
-        return codeMatches && nameMatches;
+        boolean cfoMatches;
+        if (normalizedCfoFilter == null) {
+            cfoMatches = true;
+        } else if (item.getCfo() == null) {
+            cfoMatches = false;
+        } else {
+            cfoMatches = containsNormalized(item.getCfo().getCode(), normalizedCfoFilter)
+                    || containsNormalized(item.getCfo().getName(), normalizedCfoFilter);
+        }
+        return codeMatches && nameMatches && cfoMatches;
     }
 
     private boolean matchesBoFilters(Bo item, String normalizedCodeFilter, String normalizedNameFilter, String normalizedBdzFilter) {
@@ -304,9 +334,25 @@ public class ReferencesView extends SplitLayout {
                 || containsNormalized(item.getBdz().getName(), normalizedBdzFilter);
     }
 
-    private boolean matchesCfoFilters(Cfo item, String normalizedCodeFilter, String normalizedNameFilter) {
-        return containsNormalized(item.getCode(), normalizedCodeFilter)
-                && containsNormalized(item.getName(), normalizedNameFilter);
+    private boolean matchesCodeNameFilters(String code, String name,
+                                           String normalizedCodeFilter,
+                                           String normalizedNameFilter) {
+        return containsNormalized(code, normalizedCodeFilter)
+                && containsNormalized(name, normalizedNameFilter);
+    }
+
+    private boolean matchesCfoOneFilters(Cfo item, String normalizedCodeFilter, String normalizedNameFilter) {
+        if (item == null) {
+            return false;
+        }
+        return matchesCodeNameFilters(item.getCode(), item.getName(), normalizedCodeFilter, normalizedNameFilter);
+    }
+
+    private boolean matchesCfoTwoFilters(CfoTwo item, String normalizedCodeFilter, String normalizedNameFilter) {
+        if (item == null) {
+            return false;
+        }
+        return matchesCodeNameFilters(item.getCode(), item.getName(), normalizedCodeFilter, normalizedNameFilter);
     }
 
     private boolean matchesMvzFilters(Mvz item,
@@ -417,6 +463,15 @@ public class ReferencesView extends SplitLayout {
 
         TextField code = new TextField("Код");
         TextField name = new TextField("Наименование");
+        ComboBox<Cfo> cfoField = new ComboBox<>("ЦФО I");
+        List<Cfo> cfoOptions = new ArrayList<>(cfoRepository.findAll());
+        cfoField.setItems(cfoOptions);
+        cfoField.setItemLabelGenerator(item -> {
+            String codePart = item.getCode() != null ? item.getCode() : "";
+            String namePart = item.getName() != null ? item.getName() : "";
+            return (codePart + " " + namePart).trim();
+        });
+        cfoField.setClearButtonVisible(true);
         ComboBox<Bdz> parent = new ComboBox<>("Родитель");
         java.util.List<Bdz> options = bdzService.findAll().stream()
                 .filter(b -> !Objects.equals(b.getId(), bean.getId()))
@@ -430,8 +485,24 @@ public class ReferencesView extends SplitLayout {
                     .findFirst().orElse(null));
         }
 
+        if (bean.getCfo() != null) {
+            Long cfoId = bean.getCfo().getId();
+            if (cfoId != null) {
+                Cfo selectedCfo = cfoOptions.stream()
+                        .filter(c -> Objects.equals(c.getId(), cfoId))
+                        .findFirst()
+                        .orElse(null);
+                if (selectedCfo != null) {
+                    bean.setCfo(selectedCfo);
+                } else {
+                    cfoOptions.add(bean.getCfo());
+                }
+            }
+        }
+
         binder.bind(code, Bdz::getCode, Bdz::setCode);
         binder.bind(name, Bdz::getName, Bdz::setName);
+        binder.bind(cfoField, Bdz::getCfo, Bdz::setCfo);
         binder.bind(parent, Bdz::getParent, Bdz::setParent);
         binder.setBean(bean);
 
@@ -450,7 +521,7 @@ public class ReferencesView extends SplitLayout {
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
         Button close = new Button("Закрыть", e -> dlg.close());
 
-        FormLayout form = new FormLayout(code, name, parent);
+        FormLayout form = new FormLayout(code, name, cfoField, parent);
         dlg.add(form, new HorizontalLayout(save, delete, close));
         dlg.open();
     }
@@ -775,7 +846,7 @@ public class ReferencesView extends SplitLayout {
         return layout;
     }
 
-    private VerticalLayout cfoGrid() {
+    private VerticalLayout cfoOneGrid() {
         Grid<Cfo> grid = new Grid<>(Cfo.class, false);
 
         TextField codeFilter = new TextField();
@@ -795,7 +866,7 @@ public class ReferencesView extends SplitLayout {
             String codeValue = normalizeFilterValue(codeFilter.getValue());
             String nameValue = normalizeFilterValue(nameFilter.getValue());
             return cfoRepository.findAll().stream()
-                    .filter(item -> matchesCfoFilters(item, codeValue, nameValue))
+                    .filter(item -> matchesCfoOneFilters(item, codeValue, nameValue))
                     .toList();
         };
 
@@ -807,7 +878,7 @@ public class ReferencesView extends SplitLayout {
                 cfoRepository::delete,
                 (selected, refresh) -> {
                     Cfo bean = selected != null ? selected : new Cfo();
-                    Dialog d = new Dialog("ЦФО");
+                    Dialog d = new Dialog("ЦФО I");
                     Binder<Cfo> binder = new Binder<>(Cfo.class);
                     TextField code = new TextField("Код");
                     TextField name = new TextField("Наименование");
@@ -823,6 +894,80 @@ public class ReferencesView extends SplitLayout {
                     Button del = new Button("Удалить", e -> {
                         if (bean.getId() != null) {
                             cfoRepository.delete(bean);
+                        }
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
+                    del.addThemeVariants(ButtonVariant.LUMO_ERROR);
+                    Button close = new Button("Закрыть", e -> d.close());
+                    d.add(new FormLayout(code, name), new HorizontalLayout(save, del, close));
+                    return d;
+                },
+                refresh -> refreshHolder[0] = refresh);
+
+        codeFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        nameFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+
+        return layout;
+    }
+
+    private VerticalLayout cfoTwoGrid() {
+        Grid<CfoTwo> grid = new Grid<>(CfoTwo.class, false);
+
+        TextField codeFilter = new TextField();
+        codeFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        codeFilter.setClearButtonVisible(true);
+
+        TextField nameFilter = new TextField();
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
+        grid.addColumn(CfoTwo::getCode)
+                .setHeader(columnHeaderWithFilter("Код", codeFilter));
+        grid.addColumn(CfoTwo::getName)
+                .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
+
+        Supplier<List<CfoTwo>> loader = () -> {
+            String codeValue = normalizeFilterValue(codeFilter.getValue());
+            String nameValue = normalizeFilterValue(nameFilter.getValue());
+            return cfoTwoRepository.findAll().stream()
+                    .filter(item -> matchesCfoTwoFilters(item, codeValue, nameValue))
+                    .toList();
+        };
+
+        Runnable[] refreshHolder = new Runnable[1];
+
+        VerticalLayout layout = genericGrid(CfoTwo.class, grid,
+                loader,
+                cfoTwoRepository::save,
+                cfoTwoRepository::delete,
+                (selected, refresh) -> {
+                    CfoTwo bean = selected != null ? selected : new CfoTwo();
+                    Dialog d = new Dialog("ЦФО II");
+                    Binder<CfoTwo> binder = new Binder<>(CfoTwo.class);
+                    TextField code = new TextField("Код");
+                    TextField name = new TextField("Наименование");
+                    binder.bind(code, CfoTwo::getCode, CfoTwo::setCode);
+                    binder.bind(name, CfoTwo::getName, CfoTwo::setName);
+                    binder.setBean(bean);
+                    Button save = new Button("Сохранить", e -> {
+                        cfoTwoRepository.save(binder.getBean());
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
+                    Button del = new Button("Удалить", e -> {
+                        if (bean.getId() != null) {
+                            cfoTwoRepository.delete(bean);
                         }
                         Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
                         targetRefresh.run();
@@ -876,7 +1021,7 @@ public class ReferencesView extends SplitLayout {
             String code = cfo.getCode() != null ? cfo.getCode() : "";
             String name = cfo.getName() != null ? cfo.getName() : "";
             return (code + " " + name).trim();
-        }).setHeader(columnHeaderWithFilter("ЦФО", cfoFilter));
+        }).setHeader(columnHeaderWithFilter("ЦФО I", cfoFilter));
 
         Supplier<List<Mvz>> loader = () -> {
             String codeValue = normalizeFilterValue(codeFilter.getValue());
@@ -899,7 +1044,7 @@ public class ReferencesView extends SplitLayout {
                     Binder<Mvz> binder = new Binder<>(Mvz.class);
                     TextField code = new TextField("Код");
                     TextField name = new TextField("Наименование");
-                    ComboBox<Cfo> cfo = new ComboBox<>("ЦФО");
+                    ComboBox<Cfo> cfo = new ComboBox<>("ЦФО I");
                     cfo.setItems(cfoRepository.findAll());
                     cfo.setItemLabelGenerator(item -> {
                         String cfoCode = item.getCode() != null ? item.getCode() : "";

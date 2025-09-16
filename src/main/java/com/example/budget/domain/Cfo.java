@@ -17,8 +17,11 @@ public class Cfo {
     @NotBlank
     private String name;
 
-    @OneToMany(mappedBy = "cfo", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "cfo")
     private List<Mvz> mvzList = new ArrayList<>();
+
+    @OneToMany(mappedBy = "cfo")
+    private List<Bdz> bdzList = new ArrayList<>();
 
     public Long getId() { return id; }
     public String getCode() { return code; }
@@ -26,4 +29,5 @@ public class Cfo {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public List<Mvz> getMvzList() { return mvzList; }
+    public List<Bdz> getBdzList() { return bdzList; }
 }

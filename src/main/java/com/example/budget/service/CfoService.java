@@ -1,9 +1,11 @@
 package com.example.budget.service;
 
 import com.example.budget.domain.Cfo;
-import com.example.budget.domain.Request;
+import com.example.budget.domain.Bdz;
+import com.example.budget.domain.Mvz;
+import com.example.budget.repo.BdzRepository;
 import com.example.budget.repo.CfoRepository;
-import com.example.budget.repo.RequestRepository;
+import com.example.budget.repo.MvzRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,11 +14,13 @@ import java.util.List;
 @Service
 public class CfoService {
     private final CfoRepository cfoRepository;
-    private final RequestRepository requestRepository;
+    private final BdzRepository bdzRepository;
+    private final MvzRepository mvzRepository;
 
-    public CfoService(CfoRepository cfoRepository, RequestRepository requestRepository) {
+    public CfoService(CfoRepository cfoRepository, BdzRepository bdzRepository, MvzRepository mvzRepository) {
         this.cfoRepository = cfoRepository;
-        this.requestRepository = requestRepository;
+        this.bdzRepository = bdzRepository;
+        this.mvzRepository = mvzRepository;
     }
 
     public List<Cfo> findAll() { return cfoRepository.findAll(); }
@@ -26,15 +30,19 @@ public class CfoService {
     public void deleteById(Long id) {
         Cfo cfo = cfoRepository.findById(id).orElse(null);
         if (cfo == null) return;
-        // Отвязать заявки (cfo/mvz -> null)
-        List<Request> requests = requestRepository.findAll();
-        for (Request r : requests) {
-            if (r.getCfo() != null && r.getCfo().getId().equals(id)) {
-                r.setCfo(null);
-                r.setMvz(null);
-                requestRepository.save(r);
+        // Отвязать связанные объекты
+        for (Mvz mvz : mvzRepository.findAll()) {
+            if (mvz.getCfo() != null && mvz.getCfo().getId().equals(id)) {
+                mvz.setCfo(null);
+                mvzRepository.save(mvz);
             }
         }
-        cfoRepository.delete(cfo); // каскадом удалятся МВЗ
+        for (Bdz bdz : bdzRepository.findAll()) {
+            if (bdz.getCfo() != null && bdz.getCfo().getId().equals(id)) {
+                bdz.setCfo(null);
+                bdzRepository.save(bdz);
+            }
+        }
+        cfoRepository.delete(cfo);
     }
 }

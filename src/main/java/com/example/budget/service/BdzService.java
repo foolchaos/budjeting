@@ -28,6 +28,9 @@ public class BdzService {
             if (b.getParent() != null) {
                 Hibernate.initialize(b.getParent());
             }
+            if (b.getCfo() != null) {
+                Hibernate.initialize(b.getCfo());
+            }
         });
         return list;
     }
@@ -35,7 +38,12 @@ public class BdzService {
     @Transactional(readOnly = true)
     public java.util.List<Bdz> findRoots() {
         List<Bdz> list = bdzRepository.findByParentIsNull();
-        list.forEach(Hibernate::initialize);
+        list.forEach(b -> {
+            Hibernate.initialize(b);
+            if (b.getCfo() != null) {
+                Hibernate.initialize(b.getCfo());
+            }
+        });
         return list;
     }
 
@@ -46,6 +54,9 @@ public class BdzService {
             Hibernate.initialize(b);
             if (b.getParent() != null) {
                 Hibernate.initialize(b.getParent());
+            }
+            if (b.getCfo() != null) {
+                Hibernate.initialize(b.getCfo());
             }
         });
         return list;
@@ -58,6 +69,9 @@ public class BdzService {
             Hibernate.initialize(bdz);
             if (bdz.getParent() != null) {
                 Hibernate.initialize(bdz.getParent());
+            }
+            if (bdz.getCfo() != null) {
+                Hibernate.initialize(bdz.getCfo());
             }
         }
         return bdz;
