@@ -222,6 +222,8 @@ public class CfoService {
                 throw cie;
             }
             throw e;
+        } catch (javax.xml.parsers.ParserConfigurationException e) {
+            throw new CfoImportException("Не удалось инициализировать парсер XLSX", e);
         }
 
         flushBatch(batch, batchCodes, existingByCode);
