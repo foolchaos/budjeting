@@ -2,10 +2,10 @@ package com.example.budget.service;
 
 import com.example.budget.domain.Bdz;
 import com.example.budget.domain.Cfo;
-import com.example.budget.domain.Request;
+import com.example.budget.domain.RequestPosition;
 import com.example.budget.repo.BdzRepository;
 import com.example.budget.repo.CfoRepository;
-import com.example.budget.repo.RequestRepository;
+import com.example.budget.repo.RequestPositionRepository;
 import org.apache.poi.ooxml.util.SAXHelper;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
@@ -44,10 +44,10 @@ public class BdzService {
     private static final int IMPORT_BATCH_SIZE = 200;
 
     private final BdzRepository bdzRepository;
-    private final RequestRepository requestRepository;
+    private final RequestPositionRepository requestRepository;
     private final CfoRepository cfoRepository;
 
-    public BdzService(BdzRepository bdzRepository, RequestRepository requestRepository, CfoRepository cfoRepository) {
+    public BdzService(BdzRepository bdzRepository, RequestPositionRepository requestRepository, CfoRepository cfoRepository) {
         this.bdzRepository = bdzRepository;
         this.requestRepository = requestRepository;
         this.cfoRepository = cfoRepository;
@@ -117,8 +117,8 @@ public class BdzService {
         Bdz bdz = bdzRepository.findById(id).orElse(null);
         if (bdz == null) return;
         // Отвязать заявки (bdz -> null)
-        List<Request> requests = requestRepository.findAll();
-        for (Request r : requests) {
+        List<RequestPosition> requests = requestRepository.findAll();
+        for (RequestPosition r : requests) {
             if (r.getBdz() != null && r.getBdz().getId().equals(id)) {
                 r.setBdz(null);
                 r.setZgd(null);

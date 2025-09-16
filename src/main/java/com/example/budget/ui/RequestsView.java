@@ -1,12 +1,13 @@
 package com.example.budget.ui;
 
 import com.example.budget.domain.*;
-import com.example.budget.service.BdzService;
 import com.example.budget.repo.BoRepository;
 import com.example.budget.repo.CfoTwoRepository;
-import com.example.budget.repo.MvzRepository;
 import com.example.budget.repo.ContractRepository;
 import com.example.budget.repo.CounterpartyRepository;
+import com.example.budget.repo.MvzRepository;
+import com.example.budget.service.BdzService;
+import com.example.budget.service.RequestPositionService;
 import com.example.budget.service.RequestService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -26,6 +27,7 @@ import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.spring.annotation.UIScope;
+import com.vaadin.flow.component.splitlayout.SplitLayout;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -45,6 +47,7 @@ import java.util.stream.Collectors;
 public class RequestsView extends VerticalLayout {
 
     private final RequestService requestService;
+    private final RequestPositionService requestPositionService;
     private final BdzService bdzService;
     private final BoRepository boRepository;
     private final CfoTwoRepository cfoTwoRepository;
@@ -52,20 +55,27 @@ public class RequestsView extends VerticalLayout {
     private final ContractRepository contractRepository;
     private final CounterpartyRepository counterpartyRepository;
 
-    private final Grid<Request> grid = new Grid<>(Request.class, false);
-    private final List<Request> allRequests = new ArrayList<>();
+    private final Grid<Request> requestsGrid = new Grid<>(Request.class, false);
+    private final List<Request> requests = new ArrayList<>();
+
+    private final Grid<RequestPosition> grid = new Grid<>(RequestPosition.class, false);
+    private final List<RequestPosition> allPositions = new ArrayList<>();
     private final Select<Integer> pageSizeSelect = new Select<>();
     private final Button prevPage = new Button("Назад");
     private final Button nextPage = new Button("Вперёд");
+    private final Button createPositionButton = new Button("Создать позицию");
+    private final Button deletePositionButton = new Button("Удалить выбранные");
     private final Span pageInfo = new Span();
     private int currentPage = 0;
+    private Request selectedRequest;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-    public RequestsView(RequestService requestService, BdzService bdzService,
-                        BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
+    public RequestsView(RequestService requestService, RequestPositionService requestPositionService,
+                        BdzService bdzService, BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
                         MvzRepository mvzRepository, ContractRepository contractRepository,
                         CounterpartyRepository counterpartyRepository) {
         this.requestService = requestService;
+        this.requestPositionService = requestPositionService;
         this.bdzService = bdzService;
         this.boRepository = boRepository;
         this.cfoTwoRepository = cfoTwoRepository;
@@ -74,33 +84,210 @@ public class RequestsView extends VerticalLayout {
         this.counterpartyRepository = counterpartyRepository;
 
         setSizeFull();
-        buildGrid();
+        setPadding(false);
+        setSpacing(false);
 
-        Button create = new Button("Создать");
-        Button delete = new Button("Удалить выбранные");
-        delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
-        create.addClickListener(e -> openWizard());
-        delete.addClickListener(e -> {
-            grid.getSelectedItems().forEach(r -> requestService.deleteById(r.getId()));
-            reload();
+        SplitLayout splitLayout = new SplitLayout();
+        splitLayout.setSizeFull();
+        splitLayout.setSplitterPosition(30);
+        splitLayout.addToPrimary(buildRequestsPanel());
+        splitLayout.addToSecondary(buildPositionsPanel());
+
+        add(splitLayout);
+        setFlexGrow(1, splitLayout);
+
+        reloadRequests();
+    }
+
+    private VerticalLayout buildRequestsPanel() {
+        VerticalLayout layout = new VerticalLayout();
+        layout.setSizeFull();
+        layout.setPadding(true);
+        layout.setSpacing(false);
+        layout.setAlignItems(Alignment.STRETCH);
+
+        requestsGrid.setSelectionMode(Grid.SelectionMode.MULTI);
+        requestsGrid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+        requestsGrid.setWidthFull();
+        requestsGrid.addColumn(Request::getName)
+                .setHeader("Заявка")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
+        requestsGrid.addColumn(r -> r.getPositions() != null ? r.getPositions().size() : 0)
+                .setHeader("Позиций")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+
+        requestsGrid.addItemClickListener(event -> {
+            Request item = event.getItem();
+            requestsGrid.select(item);
+            selectRequest(item);
         });
+        requestsGrid.addItemDoubleClickListener(event -> openRequestCard(event.getItem()));
+        requestsGrid.setSizeFull();
+
+        Button create = new Button("Создать заявку", e -> openRequestForm(new Request(), false));
+        create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        Button delete = new Button("Удалить выбранные", e -> {
+            List<Request> selected = new ArrayList<>(requestsGrid.getSelectedItems());
+            selected.forEach(req -> requestService.deleteById(req.getId()));
+            reloadRequests();
+        });
+        delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
 
         HorizontalLayout actions = new HorizontalLayout(create, delete);
+        actions.setWidthFull();
+
+        layout.add(actions, requestsGrid);
+        layout.setFlexGrow(1, requestsGrid);
+        return layout;
+    }
+
+    private VerticalLayout buildPositionsPanel() {
+        configurePositionsGrid();
+
+        createPositionButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        createPositionButton.addClickListener(e -> openWizard());
+        createPositionButton.setEnabled(false);
+
+        deletePositionButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+        deletePositionButton.setEnabled(false);
+        deletePositionButton.addClickListener(e -> {
+            List<RequestPosition> selected = new ArrayList<>(grid.getSelectedItems());
+            selected.forEach(position -> requestPositionService.deleteById(position.getId()));
+            reloadRequests();
+        });
+
+        grid.addSelectionListener(e -> updatePositionButtons());
         grid.setSizeFull();
+
+        HorizontalLayout actions = new HorizontalLayout(createPositionButton, deletePositionButton);
+        actions.setWidthFull();
 
         HorizontalLayout pagination = buildPaginationBar();
 
-        add(actions, grid, pagination);
-        setFlexGrow(1, grid);
-        setFlexGrow(0, pagination);
-        reload();
+        VerticalLayout layout = new VerticalLayout(actions, grid, pagination);
+        layout.setSizeFull();
+        layout.setPadding(true);
+        layout.setSpacing(false);
+        layout.setAlignItems(Alignment.STRETCH);
+        layout.setFlexGrow(1, grid);
+        layout.setFlexGrow(0, pagination);
+        return layout;
     }
 
-    private void buildGrid() {
+    private void reloadRequests() {
+        Long selectedId = selectedRequest != null ? selectedRequest.getId() : null;
+        requests.clear();
+        requests.addAll(requestService.findAll());
+        requestsGrid.setItems(requests);
+
+        if (selectedId != null) {
+            Request match = requests.stream()
+                    .filter(r -> selectedId.equals(r.getId()))
+                    .findFirst()
+                    .orElse(null);
+            if (match != null) {
+                requestsGrid.select(match);
+                selectRequest(match);
+                return;
+            }
+        }
+
+        requestsGrid.deselectAll();
+        selectRequest(null);
+    }
+
+    private void selectRequest(Request request) {
+        selectedRequest = request;
+        reloadPositions();
+    }
+
+    private void updatePositionButtons() {
+        boolean hasRequest = selectedRequest != null && selectedRequest.getId() != null;
+        createPositionButton.setEnabled(hasRequest);
+        deletePositionButton.setEnabled(hasRequest && !grid.getSelectedItems().isEmpty());
+    }
+
+    private void openRequestCard(Request entity) {
+        Request detailed = requestService.findById(entity.getId());
+        Dialog dialog = new Dialog("Заявка: " + valueOrDash(detailed.getName()));
+        dialog.setWidth("420px");
+
+        FormLayout form = new FormLayout();
+        form.setWidthFull();
+        form.addFormItem(new Span(valueOrDash(detailed.getName())), "Наименование");
+        int count = detailed.getPositions() != null ? detailed.getPositions().size() : 0;
+        form.addFormItem(new Span(String.valueOf(count)), "Количество позиций");
+
+        VerticalLayout content = new VerticalLayout(form);
+        content.setPadding(false);
+        content.setSpacing(false);
+        content.setWidthFull();
+
+        Button edit = new Button("Редактировать", e -> {
+            dialog.close();
+            openRequestForm(detailed, true);
+        });
+        Button delete = new Button("Удалить", e -> {
+            requestService.deleteById(detailed.getId());
+            dialog.close();
+            reloadRequests();
+        });
+        delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
+        Button close = new Button("Закрыть", e -> dialog.close());
+
+        HorizontalLayout actions = new HorizontalLayout(edit, delete, close);
+        actions.setWidthFull();
+        actions.setJustifyContentMode(JustifyContentMode.END);
+
+        dialog.add(content, actions);
+        dialog.open();
+    }
+
+    private void openRequestForm(Request bean, boolean editing) {
+        Request target = editing && bean.getId() != null ? requestService.findById(bean.getId()) : bean;
+
+        Dialog dialog = new Dialog(editing ? "Редактирование заявки" : "Создание заявки");
+        dialog.setWidth("420px");
+
+        Binder<Request> binder = new Binder<>(Request.class);
+        TextField name = new TextField("Наименование");
+        name.setWidthFull();
+        binder.forField(name)
+                .asRequired("Введите наименование")
+                .bind(Request::getName, Request::setName);
+        binder.setBean(target);
+
+        Button save = new Button("Сохранить", e -> {
+            if (binder.validate().isOk()) {
+                Request saved = requestService.save(target);
+                selectedRequest = saved;
+                dialog.close();
+                reloadRequests();
+            }
+        });
+        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        Button cancel = new Button("Отмена", e -> dialog.close());
+
+        HorizontalLayout actions = new HorizontalLayout(save, cancel);
+        actions.setWidthFull();
+        actions.setJustifyContentMode(JustifyContentMode.END);
+
+        VerticalLayout content = new VerticalLayout(name);
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.setWidthFull();
+
+        dialog.add(content, actions);
+        dialog.open();
+    }
+
+    private void configurePositionsGrid() {
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
         grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
         grid.setWidthFull();
-        grid.addColumn(Request::getNumber)
+        grid.addColumn(RequestPosition::getNumber)
                 .setHeader("Номер")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
@@ -116,7 +303,7 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("МВЗ")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(Request::getVgo)
+        grid.addColumn(RequestPosition::getVgo)
                 .setHeader("ВГО")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
@@ -140,11 +327,11 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Сумма без НДС")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(Request::getSubject)
+        grid.addColumn(RequestPosition::getSubject)
                 .setHeader("Предмет")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(Request::getPeriod)
+        grid.addColumn(RequestPosition::getPeriod)
                 .setHeader("Период")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
@@ -152,12 +339,12 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Вводный объект")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(Request::getProcurementMethod)
+        grid.addColumn(RequestPosition::getProcurementMethod)
                 .setHeader("Способ закупки")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
 
-        grid.addItemClickListener(e -> openCard(e.getItem()));
+        grid.addItemClickListener(e -> openPositionCard(e.getItem()));
     }
 
     private HorizontalLayout buildPaginationBar() {
@@ -177,7 +364,7 @@ public class RequestsView extends VerticalLayout {
         });
 
         nextPage.addClickListener(e -> {
-            if ((currentPage + 1) * pageSizeSelect.getValue() < allRequests.size()) {
+            if ((currentPage + 1) * pageSizeSelect.getValue() < allPositions.size()) {
                 currentPage++;
                 updateGridPage();
             }
@@ -193,17 +380,21 @@ public class RequestsView extends VerticalLayout {
         return pagination;
     }
 
-    private void reload() {
-        allRequests.clear();
-        allRequests.addAll(requestService.findAll());
+    private void reloadPositions() {
+        allPositions.clear();
+        if (selectedRequest != null && selectedRequest.getId() != null) {
+            allPositions.addAll(requestPositionService.findByRequestId(selectedRequest.getId()));
+        }
         currentPage = 0;
+        grid.deselectAll();
         updateGridPage();
+        updatePositionButtons();
     }
 
     private void updateGridPage() {
         Integer selectedSize = pageSizeSelect.getValue();
         int pageSize = selectedSize != null ? selectedSize : 10;
-        int total = allRequests.size();
+        int total = allPositions.size();
 
         if (total == 0) {
             grid.setItems(List.of());
@@ -227,16 +418,16 @@ public class RequestsView extends VerticalLayout {
             toIndex = Math.min(pageSize, total);
         }
 
-        grid.setItems(allRequests.subList(fromIndex, toIndex));
+        grid.setItems(allPositions.subList(fromIndex, toIndex));
         pageInfo.setText(String.format("%d–%d из %d", fromIndex + 1, toIndex, total));
 
         prevPage.setEnabled(currentPage > 0);
         nextPage.setEnabled(currentPage < pageCount - 1);
     }
 
-    private void openCard(Request entity) {
-        Request detailed = requestService.findDetailedById(entity.getId());
-        Dialog d = new Dialog("Заявка № " + detailed.getNumber());
+    private void openPositionCard(RequestPosition entity) {
+        RequestPosition detailed = requestPositionService.findDetailedById(entity.getId());
+        Dialog d = new Dialog("Позиция заявки № " + detailed.getNumber());
         d.setWidth("900px");
 
         VerticalLayout content = new VerticalLayout();
@@ -248,7 +439,8 @@ public class RequestsView extends VerticalLayout {
 
         content.add(
                 infoSection("Основная информация",
-                        entry("Номер заявки", detailed.getNumber()),
+                        entry("Заявка", detailed.getRequest() != null ? detailed.getRequest().getName() : null),
+                        entry("Номер позиции", detailed.getNumber()),
                         entry("Период (месяц)", detailed.getPeriod()),
                         entry("ВГО", detailed.getVgo()),
                         entry("Предмет договора", detailed.getSubject()),
@@ -287,12 +479,12 @@ public class RequestsView extends VerticalLayout {
 
         Button edit = new Button("Редактировать", e -> {
             d.close();
-            openEdit(entity);
+            openPositionEdit(entity);
         });
         Button del = new Button("Удалить", e -> {
-            requestService.deleteById(detailed.getId());
+            requestPositionService.deleteById(detailed.getId());
             d.close();
-            reload();
+            reloadRequests();
         });
         del.addThemeVariants(ButtonVariant.LUMO_ERROR);
         Button close = new Button("Закрыть", e -> d.close());
@@ -307,19 +499,29 @@ public class RequestsView extends VerticalLayout {
         d.open();
     }
 
-    private void openEdit(Request entity) {
-        openWizard(requestService.findDetailedById(entity.getId()), true);
+    private void openPositionEdit(RequestPosition entity) {
+        openWizard(requestPositionService.findDetailedById(entity.getId()), true);
     }
 
     private void openWizard() {
-        openWizard(new Request(), false);
+        if (selectedRequest == null) {
+            return;
+        }
+        RequestPosition bean = new RequestPosition();
+        bean.setRequest(selectedRequest);
+        openWizard(bean, false);
     }
 
-    private void openWizard(Request bean, boolean editing) {
-        Dialog d = new Dialog(editing ? "Редактирование заявки № " + bean.getNumber() : "Создание заявки");
+    private void openWizard(RequestPosition bean, boolean editing) {
+        Dialog d = new Dialog(editing ? "Редактирование позиции № " + bean.getNumber() : "Создание позиции заявки");
         d.setWidth("600px");
 
-        Binder<Request> binder = new Binder<>(Request.class);
+        Binder<RequestPosition> binder = new Binder<>(RequestPosition.class);
+
+        TextField requestName = new TextField("Заявка");
+        requestName.setWidthFull();
+        requestName.setReadOnly(true);
+        requestName.setValue(bean.getRequest() != null ? valueOrDash(bean.getRequest().getName()) : "");
 
         ComboBox<CfoTwo> cfo = new ComboBox<>("ЦФО II");
         List<CfoTwo> cfoItems = new ArrayList<>(cfoTwoRepository.findAll());
@@ -351,8 +553,8 @@ public class RequestsView extends VerticalLayout {
         mvz.setWidthFull();
         mvz.setClearButtonVisible(true);
 
-        binder.forField(cfo).bind(Request::getCfo2, Request::setCfo2);
-        binder.forField(mvz).bind(Request::getMvz, Request::setMvz);
+        binder.forField(cfo).bind(RequestPosition::getCfo2, RequestPosition::setCfo2);
+        binder.forField(mvz).bind(RequestPosition::getMvz, RequestPosition::setMvz);
 
         ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
         List<Bdz> bdzItems = new ArrayList<>(bdzService.findAll());
@@ -388,15 +590,15 @@ public class RequestsView extends VerticalLayout {
                     bo.clear();
                 }
             }
-            Request current = binder.getBean();
+            RequestPosition current = binder.getBean();
             if (current != null) {
                 current.setZgd(e.getValue() != null ? e.getValue().getZgd() : null);
             }
             zgd.setValue(e.getValue() != null && e.getValue().getZgd() != null ? e.getValue().getZgd().getFullName() : "");
         });
 
-        binder.forField(bdz).bind(Request::getBdz, Request::setBdz);
-        binder.forField(bo).bind(Request::getBo, Request::setBo);
+        binder.forField(bdz).bind(RequestPosition::getBdz, RequestPosition::setBdz);
+        binder.forField(bo).bind(RequestPosition::getBo, RequestPosition::setBo);
 
         ComboBox<Counterparty> counterparty = new ComboBox<>("Контрагент");
         List<Counterparty> counterpartyItems = new ArrayList<>(counterpartyRepository.findAll());
@@ -429,12 +631,12 @@ public class RequestsView extends VerticalLayout {
         contract.setClearButtonVisible(true);
         contract.setEnabled(false);
 
-        binder.forField(counterparty).bind(Request::getCounterparty, Request::setCounterparty);
-        binder.forField(contract).bind(Request::getContract, Request::setContract);
+        binder.forField(counterparty).bind(RequestPosition::getCounterparty, RequestPosition::setCounterparty);
+        binder.forField(contract).bind(RequestPosition::getContract, RequestPosition::setContract);
 
         TextField vgo = new TextField("ВГО");
         vgo.setWidthFull();
-        binder.bind(vgo, Request::getVgo, Request::setVgo);
+        binder.bind(vgo, RequestPosition::getVgo, RequestPosition::setVgo);
 
         NumberField amount = new NumberField("Сумма (млн)");
         amount.setWidthFull();
@@ -450,22 +652,22 @@ public class RequestsView extends VerticalLayout {
 
         TextField subject = new TextField("Предмет договора");
         subject.setWidthFull();
-        binder.bind(subject, Request::getSubject, Request::setSubject);
+        binder.bind(subject, RequestPosition::getSubject, RequestPosition::setSubject);
 
         ComboBox<String> period = new ComboBox<>("Период (месяц)");
         period.setItems(monthOptions());
         period.setAllowCustomValue(false);
         period.setClearButtonVisible(true);
         period.setWidthFull();
-        binder.bind(period, Request::getPeriod, Request::setPeriod);
+        binder.bind(period, RequestPosition::getPeriod, RequestPosition::setPeriod);
 
         TextField pm = new TextField("Способ закупки");
         pm.setWidthFull();
-        binder.bind(pm, Request::getProcurementMethod, Request::setProcurementMethod);
+        binder.bind(pm, RequestPosition::getProcurementMethod, RequestPosition::setProcurementMethod);
 
         Checkbox input = new Checkbox("Вводный объект");
         input.setWidthFull();
-        binder.bind(input, Request::isInputObject, Request::setInputObject);
+        binder.bind(input, RequestPosition::isInputObject, RequestPosition::setInputObject);
 
         Runnable updateContractItems = () -> {
             Counterparty selected = counterparty.getValue();
@@ -574,7 +776,7 @@ public class RequestsView extends VerticalLayout {
         }
 
         Span stepIndicator = new Span("Шаг 1 из 4");
-        VerticalLayout step1 = stepLayout(cfo, mvz);
+        VerticalLayout step1 = stepLayout(requestName, cfo, mvz);
         VerticalLayout step2 = stepLayout(bdz, bo, zgd);
         VerticalLayout step3 = stepLayout(counterparty, contract);
         VerticalLayout step4 = stepLayout(vgo, amount, amountNoVat, subject, period, pm, input);
@@ -623,16 +825,22 @@ public class RequestsView extends VerticalLayout {
         });
 
         Button save = new Button(editing ? "Сохранить изменения" : "Сохранить", e -> {
-            Request current = binder.getBean();
+            RequestPosition current = binder.getBean();
             if (current == null) {
                 return;
             }
             if (bdz.getValue() != null) {
                 current.setZgd(bdz.getValue().getZgd());
             }
-            requestService.save(current);
+            if (current.getRequest() == null && selectedRequest != null) {
+                current.setRequest(selectedRequest);
+            }
+            RequestPosition saved = requestPositionService.save(current);
+            if (saved.getRequest() != null) {
+                selectedRequest = saved.getRequest();
+            }
             d.close();
-            reload();
+            reloadRequests();
         });
         Button close = new Button("Закрыть", e -> d.close());
 

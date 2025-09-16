@@ -1,15 +1,7 @@
 package com.example.budget.repo;
+
 import com.example.budget.domain.Request;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
-
 public interface RequestRepository extends JpaRepository<Request, Long> {
-    List<Request> findByBoId(Long boId);
-
-    List<Request> findByContractId(Long contractId);
-
-    List<Request> findByZgdId(Long zgdId);
-
-    List<Request> findByCounterpartyId(Long counterpartyId);
 }
