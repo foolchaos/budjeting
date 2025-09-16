@@ -68,6 +68,7 @@ public class RequestsView extends VerticalLayout {
     private final List<Request> requests = new ArrayList<>();
     private final ListDataProvider<Request> requestsDataProvider = new ListDataProvider<>(requests);
     private final Set<Long> checkedRequestIds = new HashSet<>();
+    private final Checkbox selectAllRequests = new Checkbox();
 
     private final Button deleteRequestButton = new Button("Удалить выбранные");
     private Grid.Column<Request> requestSelectionColumn;
@@ -101,6 +102,8 @@ public class RequestsView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
+        configureSelectAllRequestsCheckbox();
+
         SplitLayout splitLayout = new SplitLayout();
         splitLayout.setSizeFull();
         splitLayout.setSplitterPosition(30);
@@ -128,7 +131,7 @@ public class RequestsView extends VerticalLayout {
         requestsGrid.setWidthFull();
 
         requestSelectionColumn = requestsGrid.addColumn(createRequestSelectionRenderer());
-        requestSelectionColumn.setHeader("");
+        requestSelectionColumn.setHeader(selectAllRequests);
         requestSelectionColumn.setTextAlign(ColumnTextAlign.CENTER);
         requestSelectionColumn.setFlexGrow(0);
         requestSelectionColumn.setAutoWidth(true);
@@ -223,6 +226,7 @@ public class RequestsView extends VerticalLayout {
         checkedRequestIds.retainAll(existingIds);
         requestsDataProvider.refreshAll();
         updateDeleteRequestsButton();
+        updateSelectAllCheckboxState();
 
         if (selectedId != null) {
             Request match = requests.stream()
@@ -272,6 +276,7 @@ public class RequestsView extends VerticalLayout {
                     checkedRequestIds.remove(current.getId());
                 }
                 updateDeleteRequestsButton();
+                updateSelectAllCheckboxState();
             });
             return checkbox;
         }, (checkbox, request) -> {
@@ -285,6 +290,73 @@ public class RequestsView extends VerticalLayout {
 
     private void updateDeleteRequestsButton() {
         deleteRequestButton.setEnabled(!checkedRequestIds.isEmpty());
+    }
+
+    private void configureSelectAllRequestsCheckbox() {
+        selectAllRequests.addValueChangeListener(event -> {
+            if (!event.isFromClient()) {
+                return;
+            }
+            boolean selectAll = Boolean.TRUE.equals(event.getValue());
+            if (selectAll) {
+                checkedRequestIds.clear();
+                requests.stream()
+                        .map(Request::getId)
+                        .filter(Objects::nonNull)
+                        .forEach(checkedRequestIds::add);
+            } else {
+                checkedRequestIds.clear();
+            }
+            requestsDataProvider.refreshAll();
+            updateDeleteRequestsButton();
+            updateSelectAllCheckboxState();
+        });
+        selectAllRequests.getElement().getStyle().set("margin", "0 auto");
+        selectAllRequests.getElement().setProperty("title", "Выбрать или снять выделение со всех заявок");
+    }
+
+    private void updateSelectAllCheckboxState() {
+        long totalSelectable = requests.stream()
+                .map(Request::getId)
+                .filter(Objects::nonNull)
+                .count();
+
+        boolean enableHeaderCheckbox = totalSelectable > 0;
+        selectAllRequests.setEnabled(enableHeaderCheckbox);
+
+        if (!enableHeaderCheckbox) {
+            if (selectAllRequests.getValue()) {
+                selectAllRequests.setValue(false);
+            }
+            if (selectAllRequests.isIndeterminate()) {
+                selectAllRequests.setIndeterminate(false);
+            }
+            return;
+        }
+
+        int selectedCount = checkedRequestIds.size();
+        if (selectedCount == 0) {
+            if (selectAllRequests.getValue()) {
+                selectAllRequests.setValue(false);
+            }
+            if (selectAllRequests.isIndeterminate()) {
+                selectAllRequests.setIndeterminate(false);
+            }
+        } else if (selectedCount == totalSelectable) {
+            if (!selectAllRequests.getValue()) {
+                selectAllRequests.setValue(true);
+            }
+            if (selectAllRequests.isIndeterminate()) {
+                selectAllRequests.setIndeterminate(false);
+            }
+        } else {
+            if (selectAllRequests.getValue()) {
+                selectAllRequests.setValue(false);
+            }
+            if (!selectAllRequests.isIndeterminate()) {
+                selectAllRequests.setIndeterminate(true);
+            }
+        }
     }
 
     private void updatePositionButtons() {
