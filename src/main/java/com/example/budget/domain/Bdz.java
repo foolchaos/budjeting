@@ -18,6 +18,10 @@ public class Bdz {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cfo_id")
+    private Cfo cfo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     private Bdz parent;
 
     @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -34,6 +38,8 @@ public class Bdz {
     public void setCode(String code) { this.code = code; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public Cfo getCfo() { return cfo; }
+    public void setCfo(Cfo cfo) { this.cfo = cfo; }
     public Bdz getParent() { return parent; }
     public void setParent(Bdz parent) { this.parent = parent; }
     public List<Bdz> getChildren() { return children; }

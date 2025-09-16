@@ -21,8 +21,8 @@ public class Request {
     private Bdz bdz;
 
     @ManyToOne
-    @JoinColumn(name = "cfo_id")
-    private Cfo cfo;
+    @JoinColumn(name = "cfo_two_id")
+    private CfoTwo cfo2;
 
     @ManyToOne
     @JoinColumn(name = "mvz_id")
@@ -61,8 +61,8 @@ public class Request {
     public String getNumber() { return number; }
     public Bdz getBdz() { return bdz; }
     public void setBdz(Bdz bdz) { this.bdz = bdz; }
-    public Cfo getCfo() { return cfo; }
-    public void setCfo(Cfo cfo) { this.cfo = cfo; }
+    public CfoTwo getCfo2() { return cfo2; }
+    public void setCfo2(CfoTwo cfo2) { this.cfo2 = cfo2; }
     public Mvz getMvz() { return mvz; }
     public void setMvz(Mvz mvz) { this.mvz = mvz; }
     public Contract getContract() { return contract; }

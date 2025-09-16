@@ -3,7 +3,7 @@ package com.example.budget.ui;
 import com.example.budget.domain.*;
 import com.example.budget.service.BdzService;
 import com.example.budget.repo.BoRepository;
-import com.example.budget.repo.CfoRepository;
+import com.example.budget.repo.CfoTwoRepository;
 import com.example.budget.repo.MvzRepository;
 import com.example.budget.repo.ContractRepository;
 import com.example.budget.service.RequestService;
@@ -46,7 +46,7 @@ public class RequestsView extends VerticalLayout {
     private final RequestService requestService;
     private final BdzService bdzService;
     private final BoRepository boRepository;
-    private final CfoRepository cfoRepository;
+    private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
 
@@ -60,12 +60,12 @@ public class RequestsView extends VerticalLayout {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     public RequestsView(RequestService requestService, BdzService bdzService,
-                        BoRepository boRepository, CfoRepository cfoRepository,
+                        BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
                         MvzRepository mvzRepository, ContractRepository contractRepository) {
         this.requestService = requestService;
         this.bdzService = bdzService;
         this.boRepository = boRepository;
-        this.cfoRepository = cfoRepository;
+        this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
 
@@ -104,8 +104,8 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("БДЗ")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getCfo() != null ? r.getCfo().getName() : "—")
-                .setHeader("ЦФО")
+        grid.addColumn(r -> r.getCfo2() != null ? r.getCfo2().getName() : "—")
+                .setHeader("ЦФО II")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
         grid.addColumn(r -> r.getMvz() != null ? r.getMvz().getName() : "—")
@@ -249,9 +249,9 @@ public class RequestsView extends VerticalLayout {
                         entry("Сумма без НДС (млн)", detailed.getAmountNoVat()),
                         entry("Вводный объект", detailed.isInputObject())
                 ),
-                infoSection("ЦФО и МВЗ",
-                        entry("Код ЦФО", detailed.getCfo() != null ? detailed.getCfo().getCode() : null),
-                        entry("Наименование ЦФО", detailed.getCfo() != null ? detailed.getCfo().getName() : null),
+                infoSection("ЦФО II и МВЗ",
+                        entry("Код ЦФО II", detailed.getCfo2() != null ? detailed.getCfo2().getCode() : null),
+                        entry("Наименование ЦФО II", detailed.getCfo2() != null ? detailed.getCfo2().getName() : null),
                         entry("Код МВЗ", detailed.getMvz() != null ? detailed.getMvz().getCode() : null),
                         entry("Наименование МВЗ", detailed.getMvz() != null ? detailed.getMvz().getName() : null)
                 ),
@@ -312,14 +312,14 @@ public class RequestsView extends VerticalLayout {
 
         Binder<Request> binder = new Binder<>(Request.class);
 
-        ComboBox<Cfo> cfo = new ComboBox<>("ЦФО");
-        List<Cfo> cfoItems = new ArrayList<>(cfoRepository.findAll());
-        if (bean.getCfo() != null) {
-            Cfo selectedCfo = findById(cfoItems, Cfo::getId, bean.getCfo().getId());
+        ComboBox<CfoTwo> cfo = new ComboBox<>("ЦФО II");
+        List<CfoTwo> cfoItems = new ArrayList<>(cfoTwoRepository.findAll());
+        if (bean.getCfo2() != null) {
+            CfoTwo selectedCfo = findById(cfoItems, CfoTwo::getId, bean.getCfo2().getId());
             if (selectedCfo != null) {
-                bean.setCfo(selectedCfo);
+                bean.setCfo2(selectedCfo);
             } else {
-                cfoItems.add(bean.getCfo());
+                cfoItems.add(bean.getCfo2());
             }
         }
         cfo.setItems(cfoItems);
@@ -328,23 +328,21 @@ public class RequestsView extends VerticalLayout {
         cfo.setClearButtonVisible(true);
 
         ComboBox<Mvz> mvz = new ComboBox<>("МВЗ");
+        List<Mvz> mvzItems = new ArrayList<>(mvzRepository.findAll());
+        if (bean.getMvz() != null) {
+            Mvz selectedMvz = findById(mvzItems, Mvz::getId, bean.getMvz().getId());
+            if (selectedMvz != null) {
+                bean.setMvz(selectedMvz);
+            } else {
+                mvzItems.add(bean.getMvz());
+            }
+        }
+        mvz.setItems(mvzItems);
         mvz.setItemLabelGenerator(m -> formatCodeName(m.getCode(), m.getName()));
         mvz.setWidthFull();
         mvz.setClearButtonVisible(true);
 
-        cfo.addValueChangeListener(e -> {
-            List<Mvz> options = e.getValue() != null ? mvzRepository.findByCfoId(e.getValue().getId()) : List.of();
-            mvz.setItems(options);
-            if (mvz.getValue() != null) {
-                Long currentId = mvz.getValue().getId();
-                boolean present = options.stream().anyMatch(item -> item.getId().equals(currentId));
-                if (!present) {
-                    mvz.clear();
-                }
-            }
-        });
-
-        binder.forField(cfo).bind(Request::getCfo, Request::setCfo);
+        binder.forField(cfo).bind(Request::getCfo2, Request::setCfo2);
         binder.forField(mvz).bind(Request::getMvz, Request::setMvz);
 
         ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
@@ -443,17 +441,6 @@ public class RequestsView extends VerticalLayout {
         binder.bind(input, Request::isInputObject, Request::setInputObject);
 
         binder.setBean(bean);
-
-        if (bean.getCfo() != null) {
-            List<Mvz> mvzItems = mvzRepository.findByCfoId(bean.getCfo().getId());
-            mvz.setItems(mvzItems);
-            Mvz selected = findById(mvzItems, Mvz::getId, bean.getMvz() != null ? bean.getMvz().getId() : null);
-            if (selected != null) {
-                mvz.setValue(selected);
-            }
-        } else {
-            mvz.setItems(List.of());
-        }
 
         if (bean.getBdz() != null) {
             List<Bo> boItems = boRepository.findByBdzId(bean.getBdz().getId());

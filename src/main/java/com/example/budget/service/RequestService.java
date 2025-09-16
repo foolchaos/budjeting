@@ -13,18 +13,18 @@ public class RequestService {
     private final RequestRepository requestRepository;
     private final BoRepository boRepository;
     private final BdzRepository bdzRepository;
-    private final CfoRepository cfoRepository;
+    private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
     private final ZgdRepository zgdRepository;
 
     public RequestService(RequestRepository requestRepository, BoRepository boRepository, BdzRepository bdzRepository,
-                          CfoRepository cfoRepository, MvzRepository mvzRepository, ContractRepository contractRepository,
+                          CfoTwoRepository cfoTwoRepository, MvzRepository mvzRepository, ContractRepository contractRepository,
                           ZgdRepository zgdRepository) {
         this.requestRepository = requestRepository;
         this.boRepository = boRepository;
         this.bdzRepository = bdzRepository;
-        this.cfoRepository = cfoRepository;
+        this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
         this.zgdRepository = zgdRepository;
@@ -39,7 +39,7 @@ public class RequestService {
                 Hibernate.initialize(r.getBdz().getParent());
             }
             if (r.getBo() != null) Hibernate.initialize(r.getBo());
-            if (r.getCfo() != null) Hibernate.initialize(r.getCfo());
+            if (r.getCfo2() != null) Hibernate.initialize(r.getCfo2());
             if (r.getMvz() != null) Hibernate.initialize(r.getMvz());
             if (r.getContract() != null) Hibernate.initialize(r.getContract());
             if (r.getZgd() != null) Hibernate.initialize(r.getZgd());
@@ -60,8 +60,8 @@ public class RequestService {
         if (request.getBo() != null) {
             Hibernate.initialize(request.getBo());
         }
-        if (request.getCfo() != null) {
-            Hibernate.initialize(request.getCfo());
+        if (request.getCfo2() != null) {
+            Hibernate.initialize(request.getCfo2());
         }
         if (request.getMvz() != null) {
             Hibernate.initialize(request.getMvz());
@@ -82,8 +82,8 @@ public class RequestService {
         if (r.getBo() != null && r.getBo().getId() != null) {
             r.setBo(boRepository.getReferenceById(r.getBo().getId()));
         }
-        if (r.getCfo() != null && r.getCfo().getId() != null) {
-            r.setCfo(cfoRepository.getReferenceById(r.getCfo().getId()));
+        if (r.getCfo2() != null && r.getCfo2().getId() != null) {
+            r.setCfo2(cfoTwoRepository.getReferenceById(r.getCfo2().getId()));
         }
         if (r.getMvz() != null && r.getMvz().getId() != null) {
             r.setMvz(mvzRepository.getReferenceById(r.getMvz().getId()));
@@ -102,5 +102,4 @@ public class RequestService {
     public void deleteById(Long id) { requestRepository.deleteById(id); }
 
     public List<Bo> findBoByBdz(Long bdzId) { return boRepository.findByBdzId(bdzId); }
-    public List<Mvz> findMvzByCfo(Long cfoId) { return mvzRepository.findByCfoId(cfoId); }
 }
