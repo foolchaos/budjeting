@@ -7,6 +7,7 @@ import com.example.budget.service.BoService;
 import com.example.budget.service.CfoImportException;
 import com.example.budget.service.CfoImportResult;
 import com.example.budget.service.CfoService;
+import com.example.budget.service.CfoTwoService;
 import com.example.budget.service.ContractService;
 import com.example.budget.service.ZgdService;
 import com.vaadin.flow.component.HasSize;
@@ -66,6 +67,7 @@ public class ReferencesView extends SplitLayout {
     private final BoService boService;
     private final ZgdService zgdService;
     private final CfoService cfoService;
+    private final CfoTwoService cfoTwoService;
     private final CfoRepository cfoRepository;
     private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
@@ -75,12 +77,13 @@ public class ReferencesView extends SplitLayout {
     private final Div rightPanel = new Div();
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
-                          CfoService cfoService, CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
+                          CfoService cfoService, CfoTwoService cfoTwoService, CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
                           MvzRepository mvzRepository, ContractService contractService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdService = zgdService;
         this.cfoService = cfoService;
+        this.cfoTwoService = cfoTwoService;
         this.cfoRepository = cfoRepository;
         this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
@@ -1064,7 +1067,61 @@ public class ReferencesView extends SplitLayout {
                     d.add(new FormLayout(code, name), new HorizontalLayout(save, del, close));
                     return d;
                 },
-                refresh -> refreshHolder[0] = refresh);
+                refresh -> refreshHolder[0] = refresh,
+                context -> {
+                    FileBuffer buffer = new FileBuffer();
+                    Upload upload = new Upload(buffer);
+                    upload.setAcceptedFileTypes(".xlsx");
+                    upload.setMaxFiles(1);
+                    upload.setMaxFileSize((int) CFO_IMPORT_MAX_SIZE);
+                    upload.setDropAllowed(false);
+                    upload.setAutoUpload(true);
+                    upload.getStyle().set("padding", "0");
+                    Button importButton = new Button("Импорт");
+                    importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                    upload.setUploadButton(importButton);
+
+                    UploadI18N i18n = new UploadI18N();
+                    i18n.setError(new UploadI18N.Error()
+                            .setFileIsTooBig("Файл превышает 10 МБ")
+                            .setIncorrectFileType("Неверный тип файла. Ожидается .xlsx")
+                            .setTooManyFiles("Можно загрузить только один файл"));
+                    upload.setI18n(i18n);
+
+                    upload.addFileRejectedListener(event ->
+                            showErrorNotification(event.getErrorMessage()));
+                    upload.addFailedListener(event ->
+                            showErrorNotification("Загрузка файла прервана"));
+                    upload.addSucceededListener(event -> {
+                        Path tempFile = buffer.getFileData().getFile().toPath();
+                        try {
+                            CfoImportResult result = cfoTwoService.importFromXlsx(tempFile);
+                            showSuccessNotification(String.format(
+                                    "Импорт ЦФО II завершён: создано %d, обновлено %d, обработано %d",
+                                    result.created(), result.updated(), result.processed()));
+                            Runnable targetRefresh = refreshHolder[0] != null
+                                    ? refreshHolder[0]
+                                    : context.refresh();
+                            if (targetRefresh != null) {
+                                targetRefresh.run();
+                            }
+                        } catch (CfoImportException ex) {
+                            showErrorNotification(ex.getMessage());
+                        } catch (Exception ex) {
+                            showErrorNotification("Не удалось импортировать файл");
+                        } finally {
+                            try {
+                                Files.deleteIfExists(tempFile);
+                            } catch (IOException ignored) {
+                            }
+                            upload.clearFileList();
+                        }
+                    });
+
+                    context.actions().setWidthFull();
+                    upload.getStyle().set("margin-left", "auto");
+                    context.actions().add(upload);
+                });
 
         codeFilter.addValueChangeListener(e -> {
             if (refreshHolder[0] != null) {

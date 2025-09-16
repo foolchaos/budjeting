@@ -1,7 +1,7 @@
 package com.example.budget.service;
 
 /**
- * Исключение, сигнализирующее об ошибке при импорте ЦФО I из Excel.
+ * Исключение, сигнализирующее об ошибке при импорте данных ЦФО из Excel.
  */
 public class CfoImportException extends RuntimeException {
     public CfoImportException(String message) {
