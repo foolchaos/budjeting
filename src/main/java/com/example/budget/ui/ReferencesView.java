@@ -6,24 +6,25 @@ import com.example.budget.service.BdzService;
 import com.example.budget.service.BoService;
 import com.example.budget.service.ContractService;
 import com.example.budget.service.ZgdService;
+import com.vaadin.flow.component.HasSize;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.treegrid.TreeGrid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.listbox.ListBox;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
+import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.select.Select;
-import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.spring.annotation.UIScope;
@@ -101,19 +102,22 @@ public class ReferencesView extends SplitLayout {
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
 
         TreeGrid<Bdz> tree = new TreeGrid<>();
-        tree.addHierarchyColumn(Bdz::getCode).setHeader("Код");
-        tree.addColumn(Bdz::getName).setHeader("Наименование");
         tree.setSelectionMode(Grid.SelectionMode.MULTI);
         tree.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
         tree.setHeightFull();
 
-        TextField codeFilter = new TextField("Код");
+        TextField codeFilter = new TextField();
         codeFilter.setValueChangeMode(ValueChangeMode.EAGER);
         codeFilter.setClearButtonVisible(true);
 
-        TextField nameFilter = new TextField("Наименование");
+        TextField nameFilter = new TextField();
         nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
         nameFilter.setClearButtonVisible(true);
+
+        tree.addHierarchyColumn(Bdz::getCode)
+                .setHeader(columnHeaderWithFilter("Код", codeFilter));
+        tree.addColumn(Bdz::getName)
+                .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
 
         Select<Integer> pageSizeSelect = new Select<>();
         pageSizeSelect.setLabel("Строк на странице");
@@ -244,11 +248,7 @@ public class ReferencesView extends SplitLayout {
         pageInfo.getStyle().set("margin-left", "auto");
         pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
 
-        HorizontalLayout filterLayout = new HorizontalLayout(codeFilter, nameFilter);
-        filterLayout.setWidthFull();
-        filterLayout.setAlignItems(Alignment.END);
-
-        layout.add(new HorizontalLayout(create, delete), filterLayout, tree, pagination);
+        layout.add(new HorizontalLayout(create, delete), tree, pagination);
         layout.setFlexGrow(1, tree);
         reload.run();
         return layout;
@@ -265,6 +265,25 @@ public class ReferencesView extends SplitLayout {
         boolean nameMatches = nameFilter == null || (item.getName() != null && item.getName().equalsIgnoreCase(nameFilter));
         boolean bdzMatches = bdzIdFilter == null || (item.getBdz() != null && Objects.equals(item.getBdz().getId(), bdzIdFilter));
         return codeMatches && nameMatches && bdzMatches;
+    }
+
+    private Div columnHeaderWithFilter(String title, com.vaadin.flow.component.Component filter) {
+        Div wrapper = new Div();
+        wrapper.getStyle().set("display", "flex");
+        wrapper.getStyle().set("flex-direction", "column");
+        wrapper.getStyle().set("gap", "var(--lumo-space-xs)");
+        wrapper.getStyle().set("width", "100%");
+
+        Span caption = new Span(title);
+        caption.getStyle().set("font-size", "var(--lumo-font-size-s)");
+        caption.getStyle().set("font-weight", "600");
+
+        if (filter instanceof HasSize sized) {
+            sized.setWidthFull();
+        }
+        filter.getElement().getStyle().set("minWidth", "0");
+        wrapper.add(caption, filter);
+        return wrapper;
     }
 
     private String trimToNull(String value) {
@@ -438,8 +457,28 @@ public class ReferencesView extends SplitLayout {
 
     private VerticalLayout boGrid() {
         Grid<Bo> grid = new Grid<>(Bo.class, false);
-        grid.addColumn(Bo::getCode).setHeader("Код");
-        grid.addColumn(Bo::getName).setHeader("Наименование");
+
+        TextField codeFilter = new TextField();
+        codeFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        codeFilter.setClearButtonVisible(true);
+
+        TextField nameFilter = new TextField();
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
+        ComboBox<Bdz> bdzFilter = new ComboBox<>();
+        bdzFilter.setItems(bdzService.findAll());
+        bdzFilter.setItemLabelGenerator(b -> {
+            String code = b.getCode() != null ? b.getCode() : "";
+            String name = b.getName() != null ? b.getName() : "";
+            return (code + " " + name).trim();
+        });
+        bdzFilter.setClearButtonVisible(true);
+
+        grid.addColumn(Bo::getCode)
+                .setHeader(columnHeaderWithFilter("Код", codeFilter));
+        grid.addColumn(Bo::getName)
+                .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
         grid.addColumn(item -> {
             if (item.getBdz() == null) {
                 return "—";
@@ -448,24 +487,7 @@ public class ReferencesView extends SplitLayout {
             String code = bdz.getCode() != null ? bdz.getCode() : "";
             String name = bdz.getName() != null ? bdz.getName() : "";
             return (code + " " + name).trim();
-        }).setHeader("БДЗ");
-
-        TextField codeFilter = new TextField("Код");
-        codeFilter.setValueChangeMode(ValueChangeMode.EAGER);
-        codeFilter.setClearButtonVisible(true);
-
-        TextField nameFilter = new TextField("Наименование");
-        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
-        nameFilter.setClearButtonVisible(true);
-
-        ComboBox<Bdz> bdzFilter = new ComboBox<>("Статья БДЗ");
-        bdzFilter.setItems(bdzService.findAll());
-        bdzFilter.setItemLabelGenerator(b -> {
-            String code = b.getCode() != null ? b.getCode() : "";
-            String name = b.getName() != null ? b.getName() : "";
-            return (code + " " + name).trim();
-        });
-        bdzFilter.setClearButtonVisible(true);
+        }).setHeader(columnHeaderWithFilter("БДЗ", bdzFilter));
 
         Supplier<List<Bo>> loader = () -> {
             String codeValue = trimToNull(codeFilter.getValue());
@@ -522,15 +544,6 @@ public class ReferencesView extends SplitLayout {
                     return d;
                 },
                 refresh -> refreshHolder[0] = refresh);
-
-        HorizontalLayout filterLayout = new HorizontalLayout(codeFilter, nameFilter, bdzFilter);
-        filterLayout.setWidthFull();
-        filterLayout.setAlignItems(Alignment.END);
-        nameFilter.setWidthFull();
-        bdzFilter.setWidthFull();
-        filterLayout.setFlexGrow(1, nameFilter);
-        filterLayout.setFlexGrow(1, bdzFilter);
-        layout.addComponentAtIndex(1, filterLayout);
 
         codeFilter.addValueChangeListener(e -> {
             if (refreshHolder[0] != null) {
