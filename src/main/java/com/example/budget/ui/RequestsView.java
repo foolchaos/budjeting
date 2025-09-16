@@ -9,12 +9,15 @@ import com.example.budget.repo.MvzRepository;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.RequestPositionService;
 import com.example.budget.service.RequestService;
+import com.vaadin.flow.component.ComponentUtil;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Span;
@@ -23,11 +26,13 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
+import com.vaadin.flow.data.provider.ListDataProvider;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.spring.annotation.UIScope;
-import com.vaadin.flow.component.splitlayout.SplitLayout;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -37,13 +42,17 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
 @UIScope
+@CssImport("./styles/views/requests-view.css")
 public class RequestsView extends VerticalLayout {
 
     private final RequestService requestService;
@@ -57,6 +66,11 @@ public class RequestsView extends VerticalLayout {
 
     private final Grid<Request> requestsGrid = new Grid<>(Request.class, false);
     private final List<Request> requests = new ArrayList<>();
+    private final ListDataProvider<Request> requestsDataProvider = new ListDataProvider<>(requests);
+    private final Set<Long> checkedRequestIds = new HashSet<>();
+
+    private final Button deleteRequestButton = new Button("Удалить выбранные");
+    private Grid.Column<Request> requestSelectionColumn;
 
     private final Grid<RequestPosition> grid = new Grid<>(RequestPosition.class, false);
     private final List<RequestPosition> allPositions = new ArrayList<>();
@@ -106,9 +120,21 @@ public class RequestsView extends VerticalLayout {
         layout.setSpacing(false);
         layout.setAlignItems(Alignment.STRETCH);
 
-        requestsGrid.setSelectionMode(Grid.SelectionMode.MULTI);
+        requestsGrid.setDataProvider(requestsDataProvider);
+        requestsGrid.setSelectionMode(Grid.SelectionMode.NONE);
         requestsGrid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+        requestsGrid.addClassName("requests-grid");
+        requestsGrid.setClassNameGenerator(this::requestRowClassName);
         requestsGrid.setWidthFull();
+
+        requestSelectionColumn = requestsGrid.addColumn(createRequestSelectionRenderer());
+        requestSelectionColumn.setHeader("");
+        requestSelectionColumn.setTextAlign(ColumnTextAlign.CENTER);
+        requestSelectionColumn.setFlexGrow(0);
+        requestSelectionColumn.setAutoWidth(true);
+        requestSelectionColumn.setKey("request-select");
+        requestSelectionColumn.setWidth("3.5em");
+
         requestsGrid.addColumn(Request::getName)
                 .setHeader("Заявка")
                 .setAutoWidth(true)
@@ -119,23 +145,33 @@ public class RequestsView extends VerticalLayout {
                 .setFlexGrow(0);
 
         requestsGrid.addItemClickListener(event -> {
-            Request item = event.getItem();
-            requestsGrid.select(item);
-            selectRequest(item);
+            if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
+                return;
+            }
+            selectRequest(event.getItem());
         });
-        requestsGrid.addItemDoubleClickListener(event -> openRequestCard(event.getItem()));
+        requestsGrid.addItemDoubleClickListener(event -> {
+            if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
+                return;
+            }
+            openRequestCard(event.getItem());
+        });
         requestsGrid.setSizeFull();
 
         Button create = new Button("Создать заявку", e -> openRequestForm(new Request(), false));
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        Button delete = new Button("Удалить выбранные", e -> {
-            List<Request> selected = new ArrayList<>(requestsGrid.getSelectedItems());
-            selected.forEach(req -> requestService.deleteById(req.getId()));
+        deleteRequestButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+        deleteRequestButton.setEnabled(false);
+        deleteRequestButton.addClickListener(e -> {
+            List<Long> toDelete = new ArrayList<>(checkedRequestIds);
+            toDelete.stream()
+                    .filter(Objects::nonNull)
+                    .forEach(requestService::deleteById);
+            checkedRequestIds.clear();
             reloadRequests();
         });
-        delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
 
-        HorizontalLayout actions = new HorizontalLayout(create, delete);
+        HorizontalLayout actions = new HorizontalLayout(create, deleteRequestButton);
         actions.setWidthFull();
 
         layout.add(actions, requestsGrid);
@@ -180,7 +216,13 @@ public class RequestsView extends VerticalLayout {
         Long selectedId = selectedRequest != null ? selectedRequest.getId() : null;
         requests.clear();
         requests.addAll(requestService.findAll());
-        requestsGrid.setItems(requests);
+        Set<Long> existingIds = requests.stream()
+                .map(Request::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        checkedRequestIds.retainAll(existingIds);
+        requestsDataProvider.refreshAll();
+        updateDeleteRequestsButton();
 
         if (selectedId != null) {
             Request match = requests.stream()
@@ -188,19 +230,61 @@ public class RequestsView extends VerticalLayout {
                     .findFirst()
                     .orElse(null);
             if (match != null) {
-                requestsGrid.select(match);
                 selectRequest(match);
                 return;
             }
         }
 
-        requestsGrid.deselectAll();
         selectRequest(null);
     }
 
     private void selectRequest(Request request) {
         selectedRequest = request;
+        requestsDataProvider.refreshAll();
         reloadPositions();
+    }
+
+    private String requestRowClassName(Request request) {
+        return isRequestSelected(request) ? "selected-request" : null;
+    }
+
+    private boolean isRequestSelected(Request request) {
+        if (request == null || selectedRequest == null) {
+            return false;
+        }
+        return Objects.equals(request.getId(), selectedRequest.getId());
+    }
+
+    private ComponentRenderer<Checkbox, Request> createRequestSelectionRenderer() {
+        return new ComponentRenderer<>(() -> {
+            Checkbox checkbox = new Checkbox();
+            checkbox.addValueChangeListener(event -> {
+                if (!event.isFromClient()) {
+                    return;
+                }
+                Request current = ComponentUtil.getData(checkbox, Request.class);
+                if (current == null || current.getId() == null) {
+                    return;
+                }
+                if (Boolean.TRUE.equals(event.getValue())) {
+                    checkedRequestIds.add(current.getId());
+                } else {
+                    checkedRequestIds.remove(current.getId());
+                }
+                updateDeleteRequestsButton();
+            });
+            return checkbox;
+        }, (checkbox, request) -> {
+            ComponentUtil.setData(checkbox, Request.class, request);
+            boolean checked = request != null && request.getId() != null
+                    && checkedRequestIds.contains(request.getId());
+            checkbox.setValue(checked);
+            checkbox.setEnabled(request != null && request.getId() != null);
+        });
+    }
+
+    private void updateDeleteRequestsButton() {
+        deleteRequestButton.setEnabled(!checkedRequestIds.isEmpty());
     }
 
     private void updatePositionButtons() {
@@ -231,6 +315,7 @@ public class RequestsView extends VerticalLayout {
         });
         Button delete = new Button("Удалить", e -> {
             requestService.deleteById(detailed.getId());
+            checkedRequestIds.remove(detailed.getId());
             dialog.close();
             reloadRequests();
         });
