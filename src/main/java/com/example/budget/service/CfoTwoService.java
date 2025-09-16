@@ -1,11 +1,7 @@
 package com.example.budget.service;
 
-import com.example.budget.domain.Bdz;
-import com.example.budget.domain.Cfo;
-import com.example.budget.domain.Mvz;
-import com.example.budget.repo.BdzRepository;
-import com.example.budget.repo.CfoRepository;
-import com.example.budget.repo.MvzRepository;
+import com.example.budget.domain.CfoTwo;
+import com.example.budget.repo.CfoTwoRepository;
 import org.apache.poi.ooxml.util.SAXHelper;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
@@ -37,42 +33,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler.SheetContentsHandler;
 
 @Service
-public class CfoService {
+public class CfoTwoService {
     private static final long MAX_IMPORT_FILE_SIZE = 10 * 1024 * 1024L;
     private static final int MAX_IMPORT_ROWS = 50_000;
     private static final int IMPORT_BATCH_SIZE = 200;
 
-    private final CfoRepository cfoRepository;
-    private final BdzRepository bdzRepository;
-    private final MvzRepository mvzRepository;
+    private final CfoTwoRepository cfoTwoRepository;
 
-    public CfoService(CfoRepository cfoRepository, BdzRepository bdzRepository, MvzRepository mvzRepository) {
-        this.cfoRepository = cfoRepository;
-        this.bdzRepository = bdzRepository;
-        this.mvzRepository = mvzRepository;
+    public CfoTwoService(CfoTwoRepository cfoTwoRepository) {
+        this.cfoTwoRepository = cfoTwoRepository;
     }
 
-    public List<Cfo> findAll() { return cfoRepository.findAll(); }
-    public Cfo save(Cfo cfo) { return cfoRepository.save(cfo); }
+    public List<CfoTwo> findAll() { return cfoTwoRepository.findAll(); }
+    public CfoTwo save(CfoTwo cfoTwo) { return cfoTwoRepository.save(cfoTwo); }
 
     @Transactional
     public void deleteById(Long id) {
-        Cfo cfo = cfoRepository.findById(id).orElse(null);
-        if (cfo == null) return;
-        // Отвязать связанные объекты
-        for (Mvz mvz : mvzRepository.findAll()) {
-            if (mvz.getCfo() != null && mvz.getCfo().getId().equals(id)) {
-                mvz.setCfo(null);
-                mvzRepository.save(mvz);
-            }
-        }
-        for (Bdz bdz : bdzRepository.findAll()) {
-            if (bdz.getCfo() != null && bdz.getCfo().getId().equals(id)) {
-                bdz.setCfo(null);
-                bdzRepository.save(bdz);
-            }
-        }
-        cfoRepository.delete(cfo);
+        cfoTwoRepository.deleteById(id);
     }
 
     @Transactional
@@ -99,7 +76,7 @@ public class CfoService {
     @Transactional
     public CfoImportResult importFromXlsx(InputStream inputStream) {
         try {
-            Path temp = Files.createTempFile("cfo-import", ".xlsx");
+            Path temp = Files.createTempFile("cfo-two-import", ".xlsx");
             try (var out = Files.newOutputStream(temp)) {
                 inputStream.transferTo(out);
             }
@@ -122,14 +99,14 @@ public class CfoService {
             throw new CfoImportException("В файле нет ни одного листа");
         }
 
-        Map<String, Cfo> existingByCode = new HashMap<>();
-        for (Cfo cfo : cfoRepository.findAll()) {
+        Map<String, CfoTwo> existingByCode = new HashMap<>();
+        for (CfoTwo cfo : cfoTwoRepository.findAll()) {
             if (cfo.getCode() != null) {
                 existingByCode.put(normalizeCodeKey(cfo.getCode()), cfo);
             }
         }
 
-        List<Cfo> batch = new ArrayList<>();
+        List<CfoTwo> batch = new ArrayList<>();
         Set<String> batchCodes = new HashSet<>();
         Set<String> countedCodes = new HashSet<>();
         AtomicInteger created = new AtomicInteger();
@@ -163,17 +140,17 @@ public class CfoService {
                     return;
                 }
                 if (rawCode == null || rawCode.isBlank()) {
-                    throw new CfoImportException("Строка " + (rowNum + 1) + ": не указан код ЦФО I");
+                    throw new CfoImportException("Строка " + (rowNum + 1) + ": не указан код ЦФО II");
                 }
                 if (rawName == null || rawName.isBlank()) {
-                    throw new CfoImportException("Строка " + (rowNum + 1) + ": не указано наименование ЦФО I");
+                    throw new CfoImportException("Строка " + (rowNum + 1) + ": не указано наименование ЦФО II");
                 }
 
                 String code = rawCode.trim();
                 String name = rawName.trim();
                 String key = normalizeCodeKey(code);
-                Cfo existing = existingByCode.get(key);
-                Cfo target = existing != null ? existing : new Cfo();
+                CfoTwo existing = existingByCode.get(key);
+                CfoTwo target = existing != null ? existing : new CfoTwo();
                 target.setCode(code);
                 target.setName(name);
                 existingByCode.put(key, target);
@@ -230,12 +207,12 @@ public class CfoService {
         return new CfoImportResult(created.get(), updated.get(), processed.get());
     }
 
-    private void flushBatch(List<Cfo> batch, Set<String> batchCodes, Map<String, Cfo> cache) {
+    private void flushBatch(List<CfoTwo> batch, Set<String> batchCodes, Map<String, CfoTwo> cache) {
         if (batch.isEmpty()) {
             return;
         }
-        List<Cfo> saved = cfoRepository.saveAll(batch);
-        for (Cfo savedEntity : saved) {
+        List<CfoTwo> saved = cfoTwoRepository.saveAll(batch);
+        for (CfoTwo savedEntity : saved) {
             if (savedEntity.getCode() != null) {
                 cache.put(normalizeCodeKey(savedEntity.getCode()), savedEntity);
             }
