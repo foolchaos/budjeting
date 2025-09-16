@@ -303,6 +303,11 @@ public class ReferencesView extends SplitLayout {
                 || containsNormalized(item.getBdz().getName(), normalizedBdzFilter);
     }
 
+    private boolean matchesCfoFilters(Cfo item, String normalizedCodeFilter, String normalizedNameFilter) {
+        return containsNormalized(item.getCode(), normalizedCodeFilter)
+                && containsNormalized(item.getName(), normalizedNameFilter);
+    }
+
     private Div columnHeaderWithFilter(String title, com.vaadin.flow.component.Component filter) {
         Div wrapper = new Div();
         wrapper.getStyle().set("display", "flex");
@@ -714,11 +719,32 @@ public class ReferencesView extends SplitLayout {
 
     private VerticalLayout cfoGrid() {
         Grid<Cfo> grid = new Grid<>(Cfo.class, false);
-        grid.addColumn(Cfo::getCode).setHeader("Код");
-        grid.addColumn(Cfo::getName).setHeader("Наименование");
 
-        return genericGrid(Cfo.class, grid,
-                () -> cfoRepository.findAll(),
+        TextField codeFilter = new TextField();
+        codeFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        codeFilter.setClearButtonVisible(true);
+
+        TextField nameFilter = new TextField();
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
+        grid.addColumn(Cfo::getCode)
+                .setHeader(columnHeaderWithFilter("Код", codeFilter));
+        grid.addColumn(Cfo::getName)
+                .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
+
+        Supplier<List<Cfo>> loader = () -> {
+            String codeValue = normalizeFilterValue(codeFilter.getValue());
+            String nameValue = normalizeFilterValue(nameFilter.getValue());
+            return cfoRepository.findAll().stream()
+                    .filter(item -> matchesCfoFilters(item, codeValue, nameValue))
+                    .toList();
+        };
+
+        Runnable[] refreshHolder = new Runnable[1];
+
+        VerticalLayout layout = genericGrid(Cfo.class, grid,
+                loader,
                 cfoRepository::save,
                 cfoRepository::delete,
                 (selected, refresh) -> {
@@ -730,13 +756,39 @@ public class ReferencesView extends SplitLayout {
                     binder.bind(code, Cfo::getCode, Cfo::setCode);
                     binder.bind(name, Cfo::getName, Cfo::setName);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { cfoRepository.save(binder.getBean()); refresh.run(); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) cfoRepository.delete(bean); refresh.run(); d.close(); });
+                    Button save = new Button("Сохранить", e -> {
+                        cfoRepository.save(binder.getBean());
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
+                    Button del = new Button("Удалить", e -> {
+                        if (bean.getId() != null) {
+                            cfoRepository.delete(bean);
+                        }
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name), new HorizontalLayout(save, del, close));
                     return d;
-                });
+                },
+                refresh -> refreshHolder[0] = refresh);
+
+        codeFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        nameFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+
+        return layout;
     }
 
     private VerticalLayout mvzGrid() {
