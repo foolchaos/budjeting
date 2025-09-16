@@ -1,10 +1,10 @@
 package com.example.budget.service;
 
 import com.example.budget.domain.Contract;
-import com.example.budget.domain.Request;
+import com.example.budget.domain.RequestPosition;
 import com.example.budget.repo.ContractRepository;
 import com.example.budget.repo.CounterpartyRepository;
-import com.example.budget.repo.RequestRepository;
+import com.example.budget.repo.RequestPositionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +14,11 @@ import java.util.List;
 public class ContractService {
 
     private final ContractRepository contractRepository;
-    private final RequestRepository requestRepository;
+    private final RequestPositionRepository requestRepository;
     private final CounterpartyRepository counterpartyRepository;
 
     public ContractService(ContractRepository contractRepository,
-                           RequestRepository requestRepository,
+                           RequestPositionRepository requestRepository,
                            CounterpartyRepository counterpartyRepository) {
         this.contractRepository = contractRepository;
         this.requestRepository = requestRepository;
@@ -59,7 +59,7 @@ public class ContractService {
             return;
         }
 
-        List<Request> requests = requestRepository.findByContractId(id);
+        List<RequestPosition> requests = requestRepository.findByContractId(id);
         if (!requests.isEmpty()) {
             requests.forEach(r -> r.setContract(null));
             requestRepository.saveAll(requests);

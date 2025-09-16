@@ -1,9 +1,9 @@
 package com.example.budget.service;
 
 import com.example.budget.domain.Bo;
-import com.example.budget.domain.Request;
+import com.example.budget.domain.RequestPosition;
 import com.example.budget.repo.BoRepository;
-import com.example.budget.repo.RequestRepository;
+import com.example.budget.repo.RequestPositionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,9 +13,9 @@ import java.util.List;
 public class BoService {
 
     private final BoRepository boRepository;
-    private final RequestRepository requestRepository;
+    private final RequestPositionRepository requestRepository;
 
-    public BoService(BoRepository boRepository, RequestRepository requestRepository) {
+    public BoService(BoRepository boRepository, RequestPositionRepository requestRepository) {
         this.boRepository = boRepository;
         this.requestRepository = requestRepository;
     }
@@ -48,7 +48,7 @@ public class BoService {
             return;
         }
 
-        List<Request> requests = requestRepository.findByBoId(id);
+        List<RequestPosition> requests = requestRepository.findByBoId(id);
         if (!requests.isEmpty()) {
             requests.forEach(r -> r.setBo(null));
             requestRepository.saveAll(requests);

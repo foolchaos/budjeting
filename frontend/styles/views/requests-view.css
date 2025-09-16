@@ -1,0 +1,7 @@
+:host ::deep(.requests-grid .selected-request) {
+    background-color: var(--lumo-primary-color-10pct);
+}
+
+:host ::deep(.requests-grid .selected-request:hover) {
+    background-color: var(--lumo-primary-color-20pct);
+}
