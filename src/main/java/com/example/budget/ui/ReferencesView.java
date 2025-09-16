@@ -4,6 +4,10 @@ import com.example.budget.domain.*;
 import com.example.budget.repo.*;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.BoService;
+import com.example.budget.service.ExcelImportException;
+import com.example.budget.service.ExcelImportResult;
+import com.example.budget.service.CfoService;
+import com.example.budget.service.CfoTwoService;
 import com.example.budget.service.ContractService;
 import com.example.budget.service.ZgdService;
 import com.vaadin.flow.component.HasSize;
@@ -25,11 +29,19 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.upload.Upload;
+import com.vaadin.flow.component.upload.UploadI18N;
+import com.vaadin.flow.component.upload.receivers.FileBuffer;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,15 +54,20 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 @Component
 @UIScope
 public class ReferencesView extends SplitLayout {
 
+    private static final long IMPORT_MAX_FILE_SIZE = 10 * 1024 * 1024L;
+
     private final BdzService bdzService;
     private final BoService boService;
     private final ZgdService zgdService;
+    private final CfoService cfoService;
+    private final CfoTwoService cfoTwoService;
     private final CfoRepository cfoRepository;
     private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
@@ -60,11 +77,13 @@ public class ReferencesView extends SplitLayout {
     private final Div rightPanel = new Div();
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
-                          CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
+                          CfoService cfoService, CfoTwoService cfoTwoService, CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
                           MvzRepository mvzRepository, ContractService contractService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdService = zgdService;
+        this.cfoService = cfoService;
+        this.cfoTwoService = cfoTwoService;
         this.cfoRepository = cfoRepository;
         this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
@@ -104,6 +123,25 @@ public class ReferencesView extends SplitLayout {
         Button create = new Button("Создать");
         Button delete = new Button("Удалить выбранные");
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
+
+        final FileBuffer importBuffer = new FileBuffer();
+        Upload importUpload = new Upload(importBuffer);
+        importUpload.setAcceptedFileTypes(".xlsx");
+        importUpload.setMaxFiles(1);
+        importUpload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
+        importUpload.setDropAllowed(false);
+        importUpload.setAutoUpload(true);
+        importUpload.getStyle().set("padding", "0");
+        Button importButton = new Button("Импорт");
+        importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        importUpload.setUploadButton(importButton);
+
+        UploadI18N importI18n = new UploadI18N();
+        importI18n.setError(new UploadI18N.Error()
+                .setFileIsTooBig("Файл превышает 10 МБ")
+                .setIncorrectFileType("Неверный тип файла. Ожидается .xlsx")
+                .setTooManyFiles("Можно загрузить только один файл"));
+        importUpload.setI18n(importI18n);
 
         TreeGrid<Bdz> tree = new TreeGrid<>();
         tree.setSelectionMode(Grid.SelectionMode.MULTI);
@@ -261,13 +299,43 @@ public class ReferencesView extends SplitLayout {
         nameFilter.addValueChangeListener(e -> reload.run());
         cfoFilter.addValueChangeListener(e -> reload.run());
 
+        importUpload.addFileRejectedListener(event ->
+                showErrorNotification(event.getErrorMessage()));
+        importUpload.addFailedListener(event ->
+                showErrorNotification("Загрузка файла прервана"));
+        importUpload.addSucceededListener(event -> {
+            Path tempFile = importBuffer.getFileData().getFile().toPath();
+            try {
+                ExcelImportResult result = bdzService.importFromXlsx(tempFile);
+                showSuccessNotification(String.format(
+                        "Импорт БДЗ завершён: создано %d, обновлено %d, обработано %d",
+                        result.created(), result.updated(), result.processed()));
+                reload.run();
+            } catch (ExcelImportException ex) {
+                showErrorNotification(ex.getMessage());
+            } catch (Exception ex) {
+                showErrorNotification("Не удалось импортировать файл");
+            } finally {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                }
+                importUpload.clearFileList();
+            }
+        });
+
         HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
         pagination.setAlignItems(Alignment.CENTER);
         pagination.setWidthFull();
         pageInfo.getStyle().set("margin-left", "auto");
         pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
 
-        layout.add(new HorizontalLayout(create, delete), tree, pagination);
+        HorizontalLayout actions = new HorizontalLayout(create, delete, importUpload);
+        actions.setAlignItems(Alignment.CENTER);
+        actions.setWidthFull();
+        importUpload.getStyle().set("margin-left", "auto");
+
+        layout.add(actions, tree, pagination);
         layout.setFlexGrow(1, tree);
         reload.run();
         return layout;
@@ -532,7 +600,7 @@ public class ReferencesView extends SplitLayout {
                                            java.util.function.Function<T, T> saver,
                                            java.util.function.Consumer<T> deleter,
                                            BiFunction<T, Runnable, Dialog> editorFactory) {
-        return genericGrid(type, grid, loader, saver, deleter, editorFactory, null);
+        return genericGrid(type, grid, loader, saver, deleter, editorFactory, null, null);
     }
 
     private <T> VerticalLayout genericGrid(Class<T> type, Grid<T> grid,
@@ -541,6 +609,16 @@ public class ReferencesView extends SplitLayout {
                                            java.util.function.Consumer<T> deleter,
                                            BiFunction<T, Runnable, Dialog> editorFactory,
                                            java.util.function.Consumer<Runnable> refreshObserver) {
+        return genericGrid(type, grid, loader, saver, deleter, editorFactory, refreshObserver, null);
+    }
+
+    private <T> VerticalLayout genericGrid(Class<T> type, Grid<T> grid,
+                                           Supplier<List<T>> loader,
+                                           java.util.function.Function<T, T> saver,
+                                           java.util.function.Consumer<T> deleter,
+                                           BiFunction<T, Runnable, Dialog> editorFactory,
+                                           java.util.function.Consumer<Runnable> refreshObserver,
+                                           Consumer<GenericGridContext> actionsCustomizer) {
         VerticalLayout layout = new VerticalLayout();
         layout.setSizeFull();
         Button create = new Button("Создать");
@@ -627,12 +705,18 @@ public class ReferencesView extends SplitLayout {
             refresh.run();
         });
 
-        HorizontalLayout actions = new HorizontalLayout(create, delete);
+        HorizontalLayout actions = new HorizontalLayout();
+        actions.setAlignItems(Alignment.CENTER);
+        actions.add(create, delete);
         HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
         pagination.setAlignItems(Alignment.CENTER);
         pagination.setWidthFull();
         pageInfo.getStyle().set("margin-left", "auto");
         pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
+
+        if (actionsCustomizer != null) {
+            actionsCustomizer.accept(new GenericGridContext(actions, create, delete, refresh));
+        }
 
         layout.add(actions, grid, pagination);
         layout.setFlexGrow(1, grid);
@@ -904,7 +988,61 @@ public class ReferencesView extends SplitLayout {
                     d.add(new FormLayout(code, name), new HorizontalLayout(save, del, close));
                     return d;
                 },
-                refresh -> refreshHolder[0] = refresh);
+                refresh -> refreshHolder[0] = refresh,
+                context -> {
+                    FileBuffer buffer = new FileBuffer();
+                    Upload upload = new Upload(buffer);
+                    upload.setAcceptedFileTypes(".xlsx");
+                    upload.setMaxFiles(1);
+                    upload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
+                    upload.setDropAllowed(false);
+                    upload.setAutoUpload(true);
+                    upload.getStyle().set("padding", "0");
+                    Button importButton = new Button("Импорт");
+                    importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                    upload.setUploadButton(importButton);
+
+                    UploadI18N i18n = new UploadI18N();
+                    i18n.setError(new UploadI18N.Error()
+                            .setFileIsTooBig("Файл превышает 10 МБ")
+                            .setIncorrectFileType("Неверный тип файла. Ожидается .xlsx")
+                            .setTooManyFiles("Можно загрузить только один файл"));
+                    upload.setI18n(i18n);
+
+                    upload.addFileRejectedListener(event ->
+                            showErrorNotification(event.getErrorMessage()));
+                    upload.addFailedListener(event ->
+                            showErrorNotification("Загрузка файла прервана"));
+                    upload.addSucceededListener(event -> {
+                        Path tempFile = buffer.getFileData().getFile().toPath();
+                        try {
+                            ExcelImportResult result = cfoService.importFromXlsx(tempFile);
+                            showSuccessNotification(String.format(
+                                    "Импорт завершён: создано %d, обновлено %d, обработано %d",
+                                    result.created(), result.updated(), result.processed()));
+                            Runnable targetRefresh = refreshHolder[0] != null
+                                    ? refreshHolder[0]
+                                    : context.refresh();
+                            if (targetRefresh != null) {
+                                targetRefresh.run();
+                            }
+                        } catch (ExcelImportException ex) {
+                            showErrorNotification(ex.getMessage());
+                        } catch (Exception ex) {
+                            showErrorNotification("Не удалось импортировать файл");
+                        } finally {
+                            try {
+                                Files.deleteIfExists(tempFile);
+                            } catch (IOException ignored) {
+                            }
+                            upload.clearFileList();
+                        }
+                    });
+
+                    context.actions().setWidthFull();
+                    upload.getStyle().set("margin-left", "auto");
+                    context.actions().add(upload);
+                });
 
         codeFilter.addValueChangeListener(e -> {
             if (refreshHolder[0] != null) {
@@ -978,7 +1116,61 @@ public class ReferencesView extends SplitLayout {
                     d.add(new FormLayout(code, name), new HorizontalLayout(save, del, close));
                     return d;
                 },
-                refresh -> refreshHolder[0] = refresh);
+                refresh -> refreshHolder[0] = refresh,
+                context -> {
+                    FileBuffer buffer = new FileBuffer();
+                    Upload upload = new Upload(buffer);
+                    upload.setAcceptedFileTypes(".xlsx");
+                    upload.setMaxFiles(1);
+                    upload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
+                    upload.setDropAllowed(false);
+                    upload.setAutoUpload(true);
+                    upload.getStyle().set("padding", "0");
+                    Button importButton = new Button("Импорт");
+                    importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                    upload.setUploadButton(importButton);
+
+                    UploadI18N i18n = new UploadI18N();
+                    i18n.setError(new UploadI18N.Error()
+                            .setFileIsTooBig("Файл превышает 10 МБ")
+                            .setIncorrectFileType("Неверный тип файла. Ожидается .xlsx")
+                            .setTooManyFiles("Можно загрузить только один файл"));
+                    upload.setI18n(i18n);
+
+                    upload.addFileRejectedListener(event ->
+                            showErrorNotification(event.getErrorMessage()));
+                    upload.addFailedListener(event ->
+                            showErrorNotification("Загрузка файла прервана"));
+                    upload.addSucceededListener(event -> {
+                        Path tempFile = buffer.getFileData().getFile().toPath();
+                        try {
+                            ExcelImportResult result = cfoTwoService.importFromXlsx(tempFile);
+                            showSuccessNotification(String.format(
+                                    "Импорт ЦФО II завершён: создано %d, обновлено %d, обработано %d",
+                                    result.created(), result.updated(), result.processed()));
+                            Runnable targetRefresh = refreshHolder[0] != null
+                                    ? refreshHolder[0]
+                                    : context.refresh();
+                            if (targetRefresh != null) {
+                                targetRefresh.run();
+                            }
+                        } catch (ExcelImportException ex) {
+                            showErrorNotification(ex.getMessage());
+                        } catch (Exception ex) {
+                            showErrorNotification("Не удалось импортировать файл");
+                        } finally {
+                            try {
+                                Files.deleteIfExists(tempFile);
+                            } catch (IOException ignored) {
+                            }
+                            upload.clearFileList();
+                        }
+                    });
+
+                    context.actions().setWidthFull();
+                    upload.getStyle().set("margin-left", "auto");
+                    context.actions().add(upload);
+                });
 
         codeFilter.addValueChangeListener(e -> {
             if (refreshHolder[0] != null) {
@@ -1240,5 +1432,22 @@ public class ReferencesView extends SplitLayout {
         });
 
         return layout;
+    }
+
+    private void showSuccessNotification(String message) {
+        showNotification(message, NotificationVariant.LUMO_SUCCESS);
+    }
+
+    private void showErrorNotification(String message) {
+        showNotification(message, NotificationVariant.LUMO_ERROR);
+    }
+
+    private void showNotification(String message, NotificationVariant variant) {
+        Notification notification = Notification.show(message, 6000, Notification.Position.TOP_CENTER);
+        notification.addThemeVariants(variant);
+    }
+
+    private record GenericGridContext(HorizontalLayout actions, Button createButton, Button deleteButton,
+                                      Runnable refresh) {
     }
 }
