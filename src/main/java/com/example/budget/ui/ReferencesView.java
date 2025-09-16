@@ -118,10 +118,23 @@ public class ReferencesView extends SplitLayout {
         nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
         nameFilter.setClearButtonVisible(true);
 
+        TextField cfoFilter = new TextField();
+        cfoFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        cfoFilter.setClearButtonVisible(true);
+
         tree.addHierarchyColumn(Bdz::getCode)
                 .setHeader(columnHeaderWithFilter("Код", codeFilter));
         tree.addColumn(Bdz::getName)
                 .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
+        tree.addColumn(item -> {
+            Cfo cfo = item.getCfo();
+            if (cfo == null) {
+                return "—";
+            }
+            String code = cfo.getCode() != null ? cfo.getCode() : "";
+            String name = cfo.getName() != null ? cfo.getName() : "";
+            return (code + " " + name).trim();
+        }).setHeader(columnHeaderWithFilter("ЦФО I", cfoFilter));
 
         Select<Integer> pageSizeSelect = new Select<>();
         pageSizeSelect.setLabel("Строк на странице");
@@ -174,7 +187,8 @@ public class ReferencesView extends SplitLayout {
             filteredChildren.clear();
             String codeValue = normalizeFilterValue(codeFilter.getValue());
             String nameValue = normalizeFilterValue(nameFilter.getValue());
-            boolean hasFilter = (codeValue != null) || (nameValue != null);
+            String cfoValue = normalizeFilterValue(cfoFilter.getValue());
+            boolean hasFilter = (codeValue != null) || (nameValue != null) || (cfoValue != null);
 
             if (!hasFilter) {
                 filteredMode.set(false);
@@ -185,7 +199,7 @@ public class ReferencesView extends SplitLayout {
                 Set<Long> includedIds = new LinkedHashSet<>();
 
                 for (Bdz item : allItems) {
-                    if (matchesBdzFilters(item, codeValue, nameValue)) {
+                    if (matchesBdzFilters(item, codeValue, nameValue, cfoValue)) {
                         Bdz current = item;
                         while (current != null && current.getId() != null) {
                             includedIds.add(current.getId());
@@ -245,6 +259,7 @@ public class ReferencesView extends SplitLayout {
 
         codeFilter.addValueChangeListener(e -> reload.run());
         nameFilter.addValueChangeListener(e -> reload.run());
+        cfoFilter.addValueChangeListener(e -> reload.run());
 
         HorizontalLayout pagination = new HorizontalLayout(prev, next, pageInfo, pageSizeSelect);
         pagination.setAlignItems(Alignment.CENTER);
@@ -258,10 +273,22 @@ public class ReferencesView extends SplitLayout {
         return layout;
     }
 
-    private boolean matchesBdzFilters(Bdz item, String normalizedCodeFilter, String normalizedNameFilter) {
+    private boolean matchesBdzFilters(Bdz item,
+                                      String normalizedCodeFilter,
+                                      String normalizedNameFilter,
+                                      String normalizedCfoFilter) {
         boolean codeMatches = containsNormalized(item.getCode(), normalizedCodeFilter);
         boolean nameMatches = containsNormalized(item.getName(), normalizedNameFilter);
-        return codeMatches && nameMatches;
+        boolean cfoMatches;
+        if (normalizedCfoFilter == null) {
+            cfoMatches = true;
+        } else if (item.getCfo() == null) {
+            cfoMatches = false;
+        } else {
+            cfoMatches = containsNormalized(item.getCfo().getCode(), normalizedCfoFilter)
+                    || containsNormalized(item.getCfo().getName(), normalizedCfoFilter);
+        }
+        return codeMatches && nameMatches && cfoMatches;
     }
 
     private boolean matchesBoFilters(Bo item, String normalizedCodeFilter, String normalizedNameFilter, String normalizedBdzFilter) {
