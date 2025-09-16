@@ -308,6 +308,29 @@ public class ReferencesView extends SplitLayout {
                 && containsNormalized(item.getName(), normalizedNameFilter);
     }
 
+    private boolean matchesMvzFilters(Mvz item,
+                                      String normalizedCodeFilter,
+                                      String normalizedNameFilter,
+                                      String normalizedCfoFilter) {
+        if (!containsNormalized(item.getCode(), normalizedCodeFilter)) {
+            return false;
+        }
+        if (!containsNormalized(item.getName(), normalizedNameFilter)) {
+            return false;
+        }
+
+        if (normalizedCfoFilter == null) {
+            return true;
+        }
+
+        if (item.getCfo() == null) {
+            return false;
+        }
+
+        return containsNormalized(item.getCfo().getCode(), normalizedCfoFilter)
+                || containsNormalized(item.getCfo().getName(), normalizedCfoFilter);
+    }
+
     private Div columnHeaderWithFilter(String title, com.vaadin.flow.component.Component filter) {
         Div wrapper = new Div();
         wrapper.getStyle().set("display", "flex");
@@ -793,12 +816,46 @@ public class ReferencesView extends SplitLayout {
 
     private VerticalLayout mvzGrid() {
         Grid<Mvz> grid = new Grid<>(Mvz.class, false);
-        grid.addColumn(Mvz::getCode).setHeader("Код");
-        grid.addColumn(Mvz::getName).setHeader("Наименование");
-        grid.addColumn(item -> item.getCfo() != null ? item.getCfo().getName() : "—").setHeader("ЦФО");
 
-        return genericGrid(Mvz.class, grid,
-                () -> mvzRepository.findAll(),
+        TextField codeFilter = new TextField();
+        codeFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        codeFilter.setClearButtonVisible(true);
+
+        TextField nameFilter = new TextField();
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
+        TextField cfoFilter = new TextField();
+        cfoFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        cfoFilter.setClearButtonVisible(true);
+
+        grid.addColumn(Mvz::getCode)
+                .setHeader(columnHeaderWithFilter("Код", codeFilter));
+        grid.addColumn(Mvz::getName)
+                .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
+        grid.addColumn(item -> {
+            if (item.getCfo() == null) {
+                return "—";
+            }
+            Cfo cfo = item.getCfo();
+            String code = cfo.getCode() != null ? cfo.getCode() : "";
+            String name = cfo.getName() != null ? cfo.getName() : "";
+            return (code + " " + name).trim();
+        }).setHeader(columnHeaderWithFilter("ЦФО", cfoFilter));
+
+        Supplier<List<Mvz>> loader = () -> {
+            String codeValue = normalizeFilterValue(codeFilter.getValue());
+            String nameValue = normalizeFilterValue(nameFilter.getValue());
+            String cfoValue = normalizeFilterValue(cfoFilter.getValue());
+            return mvzRepository.findAll().stream()
+                    .filter(item -> matchesMvzFilters(item, codeValue, nameValue, cfoValue))
+                    .toList();
+        };
+
+        Runnable[] refreshHolder = new Runnable[1];
+
+        VerticalLayout layout = genericGrid(Mvz.class, grid,
+                loader,
                 mvzRepository::save,
                 mvzRepository::delete,
                 (selected, refresh) -> {
@@ -809,18 +866,54 @@ public class ReferencesView extends SplitLayout {
                     TextField name = new TextField("Наименование");
                     ComboBox<Cfo> cfo = new ComboBox<>("ЦФО");
                     cfo.setItems(cfoRepository.findAll());
-                    cfo.setItemLabelGenerator(Cfo::getName);
+                    cfo.setItemLabelGenerator(item -> {
+                        String cfoCode = item.getCode() != null ? item.getCode() : "";
+                        String cfoName = item.getName() != null ? item.getName() : "";
+                        return (cfoCode + " " + cfoName).trim();
+                    });
+                    cfo.setClearButtonVisible(true);
                     binder.bind(code, Mvz::getCode, Mvz::setCode);
                     binder.bind(name, Mvz::getName, Mvz::setName);
                     binder.bind(cfo, Mvz::getCfo, Mvz::setCfo);
                     binder.setBean(bean);
-                    Button save = new Button("Сохранить", e -> { mvzRepository.save(binder.getBean()); refresh.run(); d.close(); });
-                    Button del = new Button("Удалить", e -> { if (bean.getId()!=null) mvzRepository.delete(bean); refresh.run(); d.close(); });
+                    Button save = new Button("Сохранить", e -> {
+                        mvzRepository.save(binder.getBean());
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
+                    Button del = new Button("Удалить", e -> {
+                        if (bean.getId() != null) {
+                            mvzRepository.delete(bean);
+                        }
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        d.close();
+                    });
                     del.addThemeVariants(ButtonVariant.LUMO_ERROR);
                     Button close = new Button("Закрыть", e -> d.close());
                     d.add(new FormLayout(code, name, cfo), new HorizontalLayout(save, del, close));
                     return d;
-                });
+                },
+                refresh -> refreshHolder[0] = refresh);
+
+        codeFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        nameFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+        cfoFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+
+        return layout;
     }
 
     private VerticalLayout contractGrid() {
