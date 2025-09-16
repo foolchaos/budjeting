@@ -526,6 +526,10 @@ public class ReferencesView extends SplitLayout {
         return value.toLowerCase(Locale.ROOT).contains(normalizedFilter);
     }
 
+    private boolean matchesFilter(String value, String normalizedFilter) {
+        return containsNormalized(value, normalizedFilter);
+    }
+
     private void openBdzCard(Bdz entity, Runnable refresh) {
         Bdz bean = entity.getId() != null ? bdzService.findById(entity.getId()) : entity;
 
