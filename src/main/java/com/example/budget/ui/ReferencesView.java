@@ -2,6 +2,8 @@ package com.example.budget.ui;
 
 import com.example.budget.domain.*;
 import com.example.budget.repo.*;
+import com.example.budget.service.BdzImportException;
+import com.example.budget.service.BdzImportResult;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.BoService;
 import com.example.budget.service.ContractService;
@@ -14,6 +16,8 @@ import com.vaadin.flow.component.treegrid.TreeGrid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.listbox.ListBox;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -25,11 +29,16 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.upload.Upload;
+import com.vaadin.flow.component.upload.receivers.FileBuffer;
+import com.vaadin.flow.component.upload.receivers.FileBuffer.FileData;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -98,6 +107,17 @@ public class ReferencesView extends SplitLayout {
     private VerticalLayout bdzTree() {
         VerticalLayout layout = new VerticalLayout();
         layout.setSizeFull();
+        FileBuffer fileBuffer = new FileBuffer();
+        Upload upload = new Upload(fileBuffer);
+        upload.setAcceptedFileTypes(".xlsx");
+        upload.setMaxFileSize(10 * 1024 * 1024);
+        upload.setMaxFiles(1);
+        upload.setDropAllowed(false);
+        upload.getElement().setProperty("title", "Импорт .xlsx (до 10 МБ и 10 000 строк)");
+        Button importButton = new Button("Импорт из Excel");
+        importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        upload.setUploadButton(importButton);
+
         Button create = new Button("Создать");
         Button delete = new Button("Удалить выбранные");
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
@@ -209,6 +229,35 @@ public class ReferencesView extends SplitLayout {
             updatePage.run();
         };
 
+        upload.addSucceededListener(event -> {
+            try (InputStream in = fileBuffer.getInputStream()) {
+                BdzImportResult result = bdzService.importFromExcel(in);
+                showNotification(String.format(
+                        "Импортировано %d строк (создано %d, обновлено %d)",
+                        result.totalRows(), result.createdCount(), result.updatedCount()),
+                        NotificationVariant.LUMO_SUCCESS);
+                reload.run();
+            } catch (BdzImportException ex) {
+                showNotification(ex.getMessage(), NotificationVariant.LUMO_ERROR);
+            } catch (Exception ex) {
+                showNotification("Ошибка импорта: " + ex.getMessage(), NotificationVariant.LUMO_ERROR);
+            } finally {
+                cleanupUpload(upload, fileBuffer);
+            }
+        });
+
+        upload.addFileRejectedListener(event -> {
+            showNotification(event.getErrorMessage(), NotificationVariant.LUMO_ERROR);
+            upload.clearFileList();
+        });
+
+        upload.addFailedListener(event -> {
+            Throwable reason = event.getReason();
+            String message = reason != null ? reason.getMessage() : "Неизвестная ошибка";
+            showNotification("Ошибка загрузки файла: " + message, NotificationVariant.LUMO_ERROR);
+            cleanupUpload(upload, fileBuffer);
+        });
+
         pageSizeSelect.addValueChangeListener(e -> {
             currentPage[0] = 0;
             updatePage.run();
@@ -249,7 +298,9 @@ public class ReferencesView extends SplitLayout {
         pageInfo.getStyle().set("margin-left", "auto");
         pageInfo.getStyle().set("margin-right", "var(--lumo-space-m)");
 
-        layout.add(new HorizontalLayout(create, delete), tree, pagination);
+        HorizontalLayout actions = new HorizontalLayout(upload, create, delete);
+        actions.setAlignItems(Alignment.END);
+        layout.add(actions, tree, pagination);
         layout.setFlexGrow(1, tree);
         reload.run();
         return layout;
@@ -406,6 +457,24 @@ public class ReferencesView extends SplitLayout {
             return false;
         }
         return value.toLowerCase(Locale.ROOT).contains(normalizedFilter);
+    }
+
+    private void showNotification(String message, NotificationVariant variant) {
+        Notification notification = Notification.show(message, 6000, Notification.Position.TOP_CENTER);
+        if (variant != null) {
+            notification.addThemeVariants(variant);
+        }
+    }
+
+    private void cleanupUpload(Upload upload, FileBuffer buffer) {
+        FileData data = buffer.getFileData();
+        if (data != null) {
+            File file = data.getFile();
+            if (file != null && file.exists()) {
+                file.delete();
+            }
+        }
+        upload.clearFileList();
     }
 
     private void openBdzCard(Bdz entity, Runnable refresh) {
