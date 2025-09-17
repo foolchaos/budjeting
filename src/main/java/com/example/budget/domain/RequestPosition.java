@@ -31,12 +31,12 @@ public class RequestPosition {
     @JoinColumn(name = "mvz_id")
     private Mvz mvz;
 
-    @OneToOne
-    @JoinColumn(name = "counterparty_id", unique = true)
+    @ManyToOne
+    @JoinColumn(name = "counterparty_id")
     private Counterparty counterparty;
 
-    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "contract_id", unique = true)
+    @ManyToOne
+    @JoinColumn(name = "contract_id")
     private Contract contract;
 
     @ManyToOne
