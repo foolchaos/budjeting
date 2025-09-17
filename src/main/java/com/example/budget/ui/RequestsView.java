@@ -49,6 +49,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Component
 @UIScope
@@ -84,6 +85,8 @@ public class RequestsView extends VerticalLayout {
     private int currentPage = 0;
     private Request selectedRequest;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final int MIN_REQUEST_YEAR = 2000;
+    private static final int MAX_REQUEST_YEAR = 2050;
 
     public RequestsView(RequestService requestService, RequestPositionService requestPositionService,
                         BdzService bdzService, BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
@@ -142,6 +145,10 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Заявка")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        requestsGrid.addColumn(r -> valueOrDash(r.getYear()))
+                .setHeader("Год")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
         requestsGrid.addColumn(r -> r.getPositions() != null ? r.getPositions().size() : 0)
                 .setHeader("Позиций")
                 .setAutoWidth(true)
@@ -373,6 +380,7 @@ public class RequestsView extends VerticalLayout {
         FormLayout form = new FormLayout();
         form.setWidthFull();
         form.addFormItem(new Span(valueOrDash(detailed.getName())), "Наименование");
+        form.addFormItem(new Span(valueOrDash(detailed.getYear())), "Год");
         int count = detailed.getPositions() != null ? detailed.getPositions().size() : 0;
         form.addFormItem(new Span(String.valueOf(count)), "Количество позиций");
 
@@ -411,10 +419,39 @@ public class RequestsView extends VerticalLayout {
         Binder<Request> binder = new Binder<>(Request.class);
         TextField name = new TextField("Наименование");
         name.setWidthFull();
+        List<Integer> yearOptions = new ArrayList<>(requestYearOptions());
+        Integer targetYear = target.getYear();
+        if (targetYear != null && !yearOptions.contains(targetYear)) {
+            yearOptions.add(targetYear);
+            yearOptions.sort(Integer::compareTo);
+        }
+        ComboBox<Integer> year = new ComboBox<>("Год");
+        year.setWidthFull();
+        year.setItems(yearOptions);
+        year.setItemLabelGenerator(String::valueOf);
+        year.setAllowCustomValue(false);
+        year.setRequiredIndicatorVisible(true);
+
         binder.forField(name)
                 .asRequired("Введите наименование")
                 .bind(Request::getName, Request::setName);
+        binder.forField(year)
+                .asRequired("Выберите год")
+                .bind(Request::getYear, Request::setYear);
         binder.setBean(target);
+
+        if (year.getValue() == null) {
+            int currentYear = LocalDate.now().getYear();
+            Integer defaultYear = null;
+            if (currentYear >= MIN_REQUEST_YEAR && currentYear <= MAX_REQUEST_YEAR) {
+                defaultYear = currentYear;
+            } else if (!yearOptions.isEmpty()) {
+                defaultYear = yearOptions.get(0);
+            }
+            if (defaultYear != null) {
+                year.setValue(defaultYear);
+            }
+        }
 
         Button save = new Button("Сохранить", e -> {
             if (binder.validate().isOk()) {
@@ -431,7 +468,7 @@ public class RequestsView extends VerticalLayout {
         actions.setWidthFull();
         actions.setJustifyContentMode(JustifyContentMode.END);
 
-        VerticalLayout content = new VerticalLayout(name);
+        VerticalLayout content = new VerticalLayout(name, year);
         content.setPadding(false);
         content.setSpacing(true);
         content.setWidthFull();
@@ -1136,6 +1173,10 @@ public class RequestsView extends VerticalLayout {
         return value;
     }
 
+    private String valueOrDash(Integer value) {
+        return value != null ? value.toString() : "—";
+    }
+
     private String valueOrDash(BigDecimal value) {
         return value != null ? value.toPlainString() : "—";
     }
@@ -1146,6 +1187,12 @@ public class RequestsView extends VerticalLayout {
 
     private String yesNo(boolean value) {
         return value ? "Да" : "Нет";
+    }
+
+    private List<Integer> requestYearOptions() {
+        return IntStream.rangeClosed(MIN_REQUEST_YEAR, MAX_REQUEST_YEAR)
+                .boxed()
+                .collect(Collectors.toList());
     }
 
     private List<String> monthOptions() {

@@ -2,6 +2,7 @@ package com.example.budget.domain;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,10 @@ public class Request {
     @Column(nullable = false)
     private String name;
 
+    @NotNull
+    @Column(name = "request_year", nullable = false)
+    private Integer year;
+
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RequestPosition> positions = new ArrayList<>();
 
@@ -30,6 +35,14 @@ public class Request {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Integer getYear() {
+        return year;
+    }
+
+    public void setYear(Integer year) {
+        this.year = year;
     }
 
     public List<RequestPosition> getPositions() {
