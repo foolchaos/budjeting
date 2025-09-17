@@ -129,9 +129,7 @@ public class RequestsView extends VerticalLayout {
         SplitLayout splitLayout = new SplitLayout();
         splitLayout.setSizeFull();
         splitLayout.setSplitterPosition(30);
-        VerticalLayout requestsPanel = buildRequestsPanel();
-        configureRequestsPanelWidth(requestsPanel);
-        splitLayout.addToPrimary(requestsPanel);
+        splitLayout.addToPrimary(buildRequestsPanel());
         splitLayout.addToSecondary(buildPositionsPanel());
 
         add(splitLayout);
@@ -142,13 +140,10 @@ public class RequestsView extends VerticalLayout {
 
     private VerticalLayout buildRequestsPanel() {
         VerticalLayout layout = new VerticalLayout();
-        layout.setHeightFull();
+        layout.setSizeFull();
         layout.setPadding(true);
         layout.setSpacing(false);
         layout.setAlignItems(Alignment.STRETCH);
-        layout.addClassName("requests-panel");
-        layout.getElement().setAttribute("data-role", "requests-panel");
-        layout.getStyle().set("flex", "0 0 auto");
 
         requestsGrid.setDataProvider(requestsDataProvider);
         requestsGrid.setSelectionMode(Grid.SelectionMode.SINGLE);
@@ -208,59 +203,11 @@ public class RequestsView extends VerticalLayout {
         });
 
         HorizontalLayout actions = new HorizontalLayout(create, deleteRequestButton, exportRequestButton);
-        actions.addClassName("requests-actions");
-        actions.getElement().setAttribute("data-role", "requests-actions");
-        actions.getStyle().set("flex-wrap", "nowrap");
+        actions.setWidthFull();
 
         layout.add(actions, requestsGrid);
         layout.setFlexGrow(1, requestsGrid);
         return layout;
-    }
-
-    private void configureRequestsPanelWidth(VerticalLayout panel) {
-        panel.addAttachListener(event -> panel.getElement().executeJs(
-                "const panel = this;" +
-                        "if (panel.__requestsWidthObserver) { return; }" +
-                        "const actions = panel.querySelector('[data-role="requests-actions"]');" +
-                        "if (!actions) { return; }" +
-                        "const toNumber = value => Number.parseFloat(value) || 0;" +
-                        "const updateWidth = () => {" +
-                        "  const style = getComputedStyle(panel);" +
-                        "  const padding = toNumber(style.paddingLeft) + toNumber(style.paddingRight);" +
-                        "  const width = Math.ceil(actions.scrollWidth + padding);" +
-                        "  const slot = panel.assignedSlot;" +
-                        "  const container = slot ? slot.parentElement : null;" +
-                        "  [panel, container].forEach(element => {" +
-                        "    if (!element) { return; }" +
-                        "    element.style.flex = `0 0 ${width}px`;" +
-                        "    element.style.width = `${width}px`;" +
-                        "    element.style.minWidth = `${width}px`;" +
-                        "    element.style.maxWidth = `${width}px`;" +
-                        "  });" +
-                        "};" +
-                        "const schedule = () => requestAnimationFrame(updateWidth);" +
-                        "schedule();" +
-                        "const observer = new ResizeObserver(schedule);" +
-                        "observer.observe(actions);" +
-                        "panel.__requestsWidthObserver = observer;" +
-                        "const onResize = () => schedule();" +
-                        "window.addEventListener('resize', onResize);" +
-                        "panel.__requestsWidthListener = onResize;"));
-        panel.addDetachListener(event -> panel.getElement().executeJs(
-                "const panel = this;" +
-                        "const observer = panel.__requestsWidthObserver;" +
-                        "if (observer) { observer.disconnect(); delete panel.__requestsWidthObserver; }" +
-                        "const listener = panel.__requestsWidthListener;" +
-                        "if (listener) { window.removeEventListener('resize', listener); delete panel.__requestsWidthListener; }" +
-                        "const slot = panel.assignedSlot;" +
-                        "const container = slot ? slot.parentElement : null;" +
-                        "[panel, container].forEach(element => {" +
-                        "  if (!element) { return; }" +
-                        "  element.style.flex = '';" +
-                        "  element.style.width = '';" +
-                        "  element.style.minWidth = '';" +
-                        "  element.style.maxWidth = '';" +
-                        "});"));
     }
 
     private VerticalLayout buildPositionsPanel() {
