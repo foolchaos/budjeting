@@ -56,23 +56,3 @@ BEGIN
     END IF;
 END
 $$;
-
-DO $$
-DECLARE
-    constraint_record RECORD;
-BEGIN
-    FOR constraint_record IN (
-        SELECT con.conname AS name
-        FROM pg_constraint con
-                 JOIN pg_attribute att ON att.attrelid = con.conrelid
-                     AND att.attnum = ANY (con.conkey)
-        WHERE con.conrelid = 'app_request'::regclass
-          AND con.contype = 'u'
-          AND array_length(con.conkey, 1) = 1
-          AND att.attname IN ('contract_id', 'counterparty_id')
-    )
-        LOOP
-            EXECUTE format('ALTER TABLE app_request DROP CONSTRAINT %I', constraint_record.name);
-        END LOOP;
-END
-$$;
