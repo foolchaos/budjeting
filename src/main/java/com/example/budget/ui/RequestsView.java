@@ -49,6 +49,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Component
 @UIScope
@@ -142,6 +143,10 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Заявка")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        requestsGrid.addColumn(r -> valueOrDash(r.getYear()))
+                .setHeader("Год")
+                .setAutoWidth(true)
+                .setFlexGrow(0);
         requestsGrid.addColumn(r -> r.getPositions() != null ? r.getPositions().size() : 0)
                 .setHeader("Позиций")
                 .setAutoWidth(true)
@@ -373,6 +378,7 @@ public class RequestsView extends VerticalLayout {
         FormLayout form = new FormLayout();
         form.setWidthFull();
         form.addFormItem(new Span(valueOrDash(detailed.getName())), "Наименование");
+        form.addFormItem(new Span(valueOrDash(detailed.getYear())), "Год");
         int count = detailed.getPositions() != null ? detailed.getPositions().size() : 0;
         form.addFormItem(new Span(String.valueOf(count)), "Количество позиций");
 
@@ -411,10 +417,25 @@ public class RequestsView extends VerticalLayout {
         Binder<Request> binder = new Binder<>(Request.class);
         TextField name = new TextField("Наименование");
         name.setWidthFull();
+        List<Integer> yearOptions = requestYearOptions();
+        ComboBox<Integer> year = new ComboBox<>("Год");
+        year.setWidthFull();
+        year.setItems(yearOptions);
+        year.setItemLabelGenerator(String::valueOf);
+        year.setAllowCustomValue(false);
+        year.setRequiredIndicatorVisible(true);
+
         binder.forField(name)
                 .asRequired("Введите наименование")
                 .bind(Request::getName, Request::setName);
+        binder.forField(year)
+                .asRequired("Выберите год")
+                .bind(Request::getYear, Request::setYear);
         binder.setBean(target);
+
+        if (!editing && year.getValue() == null && !yearOptions.isEmpty()) {
+            year.setValue(yearOptions.get(0));
+        }
 
         Button save = new Button("Сохранить", e -> {
             if (binder.validate().isOk()) {
@@ -431,7 +452,7 @@ public class RequestsView extends VerticalLayout {
         actions.setWidthFull();
         actions.setJustifyContentMode(JustifyContentMode.END);
 
-        VerticalLayout content = new VerticalLayout(name);
+        VerticalLayout content = new VerticalLayout(name, year);
         content.setPadding(false);
         content.setSpacing(true);
         content.setWidthFull();
@@ -1136,6 +1157,10 @@ public class RequestsView extends VerticalLayout {
         return value;
     }
 
+    private String valueOrDash(Integer value) {
+        return value != null ? value.toString() : "—";
+    }
+
     private String valueOrDash(BigDecimal value) {
         return value != null ? value.toPlainString() : "—";
     }
@@ -1146,6 +1171,13 @@ public class RequestsView extends VerticalLayout {
 
     private String yesNo(boolean value) {
         return value ? "Да" : "Нет";
+    }
+
+    private List<Integer> requestYearOptions() {
+        int currentYear = LocalDate.now().getYear();
+        return IntStream.rangeClosed(currentYear, currentYear + 5)
+                .boxed()
+                .collect(Collectors.toList());
     }
 
     private List<String> monthOptions() {

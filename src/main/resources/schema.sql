@@ -1,10 +1,20 @@
 CREATE TABLE IF NOT EXISTS app_request_header (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL
+    name VARCHAR(255) NOT NULL,
+    request_year INTEGER NOT NULL
 );
 
-INSERT INTO app_request_header (name)
-SELECT 'Заявка без названия'
+ALTER TABLE app_request_header
+    ADD COLUMN IF NOT EXISTS request_year INTEGER;
+
+UPDATE app_request_header
+SET request_year = COALESCE(request_year, EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER);
+
+ALTER TABLE app_request_header
+    ALTER COLUMN request_year SET NOT NULL;
+
+INSERT INTO app_request_header (name, request_year)
+SELECT 'Заявка без названия', EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER
 WHERE NOT EXISTS (SELECT 1 FROM app_request_header);
 
 DO $$
