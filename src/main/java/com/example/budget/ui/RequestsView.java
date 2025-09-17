@@ -448,56 +448,82 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Номер")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getBdz() != null ? r.getBdz().getName() : "—")
-                .setHeader("БДЗ")
-                .setAutoWidth(true)
-                .setFlexGrow(1);
-        grid.addColumn(r -> r.getCfo2() != null ? r.getCfo2().getName() : "—")
+        grid.addColumn(r -> valueOrDash(r.getCfo2() != null ? r.getCfo2().getCode() : null))
                 .setHeader("ЦФО II")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getMvz() != null ? r.getMvz().getName() : "—")
+        grid.addColumn(r -> valueOrDash(r.getMvz() != null ? r.getMvz().getCode() : null))
                 .setHeader("МВЗ")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(RequestPosition::getVgo)
-                .setHeader("ВГО")
+        grid.addColumn(r -> {
+                    Bdz bdz = r.getBdz();
+                    return bdz != null ? formatCodeName(bdz.getCode(), bdz.getName()) : "—";
+                })
+                .setHeader("БДЗ")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getBo() != null ? r.getBo().getName() : "—")
+        grid.addColumn(r -> {
+                    Bo bo = r.getBo();
+                    return bo != null ? formatCodeName(bo.getCode(), bo.getName()) : "—";
+                })
                 .setHeader("БО")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getContract() != null ? r.getContract().getName() : "—")
-                .setHeader("Договор")
+        grid.addColumn(r -> valueOrDash(r.getVgo()))
+                .setHeader("ВГО")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getCounterparty() != null ? r.getCounterparty().getLegalEntityName() : "—")
+        grid.addColumn(r -> {
+                    Counterparty counterparty = r.getCounterparty();
+                    return counterparty != null ? valueOrDash(counterparty.getLegalEntityName()) : "—";
+                })
                 .setHeader("Контрагент")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getAmount() != null ? r.getAmount().toPlainString() : "—")
-                .setHeader("Сумма")
+        grid.addColumn(r -> {
+                    Contract contract = r.getContract();
+                    return contract != null ? valueOrDash(contract.getName()) : "—";
+                })
+                .setHeader("Договор")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.getAmountNoVat() != null ? r.getAmountNoVat().toPlainString() : "—")
-                .setHeader("Сумма без НДС")
+        grid.addColumn(r -> {
+                    Contract contract = r.getContract();
+                    return contract != null ? valueOrDash(contract.getInternalNumber()) : "—";
+                })
+                .setHeader("№ договора (внутренний)")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(RequestPosition::getSubject)
-                .setHeader("Предмет")
+        grid.addColumn(r -> {
+                    Contract contract = r.getContract();
+                    return contract != null ? valueOrDash(contract.getExternalNumber()) : "—";
+                })
+                .setHeader("№ договора (внешний)")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(RequestPosition::getPeriod)
+        grid.addColumn(r -> {
+                    Contract contract = r.getContract();
+                    return contract != null ? valueOrDash(contract.getContractDate()) : "—";
+                })
+                .setHeader("Дата договора")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
+        grid.addColumn(r -> valueOrDash(r.getProcurementMethod()))
+                .setHeader("Способ закупки")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
+        grid.addColumn(r -> valueOrDash(r.getPeriod()))
                 .setHeader("Период")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> r.isInputObject() ? "Да" : "Нет")
-                .setHeader("Вводный объект")
+        grid.addColumn(r -> valueOrDash(r.getAmountNoVat()))
+                .setHeader("Сумма/млн. руб. (без НДС)")
                 .setAutoWidth(true)
-                .setFlexGrow(1);
-        grid.addColumn(RequestPosition::getProcurementMethod)
-                .setHeader("Способ закупки")
+                .setFlexGrow(1)
+                .setTextAlign(ColumnTextAlign.END);
+        grid.addColumn(r -> yesNo(r.isInputObject()))
+                .setHeader("Вводный объект")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
 
