@@ -1,7 +1,10 @@
-:host ::deep(.requests-grid .selected-request) {
-    background-color: var(--lumo-primary-color-10pct);
+:host ::deep(.requests-grid::part(selected-row)),
+:host ::deep(.requests-grid::part(selected-row-cell)) {
+    background-color: var(--lumo-primary-color-30pct);
+    color: var(--lumo-primary-text-color);
 }
 
-:host ::deep(.requests-grid .selected-request:hover) {
-    background-color: var(--lumo-primary-color-20pct);
+:host ::deep(.requests-grid::part(selected-row):hover),
+:host ::deep(.requests-grid::part(selected-row-cell):hover) {
+    background-color: var(--lumo-primary-color-40pct);
 }
