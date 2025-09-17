@@ -4,6 +4,9 @@ spring:
     url: ${APP_DB_URL:jdbc:postgresql://localhost:5432/appdb}
     username: ${APP_DB_USER:postgres}
     password: ${APP_DB_PASS:postgres}
+  sql:
+    init:
+      mode: always
   jpa:
     hibernate:
       ddl-auto: update
