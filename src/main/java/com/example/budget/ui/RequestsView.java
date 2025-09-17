@@ -221,7 +221,7 @@ public class RequestsView extends VerticalLayout {
         panel.addAttachListener(event -> panel.getElement().executeJs(
                 "const panel = this;" +
                         "if (panel.__requestsWidthObserver) { return; }" +
-                        "const actions = panel.querySelector('[data-role="requests-actions"]');" +
+                        "const actions = panel.querySelector(\"[data-role='requests-actions']\");" +
                         "if (!actions) { return; }" +
                         "const toNumber = value => Number.parseFloat(value) || 0;" +
                         "const updateWidth = () => {" +
