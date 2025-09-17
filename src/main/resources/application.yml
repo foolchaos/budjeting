@@ -7,7 +7,7 @@ spring:
   sql:
     init:
       mode: always
-      separator-mode: smart
+      separator: "@@"
   jpa:
     hibernate:
       ddl-auto: update

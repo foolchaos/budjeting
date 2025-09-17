@@ -2,21 +2,21 @@ CREATE TABLE IF NOT EXISTS app_request_header (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     request_year INTEGER NOT NULL
-);
+)@@
 
 ALTER TABLE app_request_header
-    ADD COLUMN IF NOT EXISTS request_year INTEGER;
+    ADD COLUMN IF NOT EXISTS request_year INTEGER@@
 
 UPDATE app_request_header
 SET request_year = CAST(date_part('year', current_date) AS INTEGER)
-WHERE request_year IS NULL;
+WHERE request_year IS NULL@@
 
 ALTER TABLE app_request_header
-    ALTER COLUMN request_year SET NOT NULL;
+    ALTER COLUMN request_year SET NOT NULL@@
 
 INSERT INTO app_request_header (name, request_year)
 SELECT 'Заявка без названия', CAST(date_part('year', current_date) AS INTEGER)
-WHERE NOT EXISTS (SELECT 1 FROM app_request_header);
+WHERE NOT EXISTS (SELECT 1 FROM app_request_header)@@
 
 DO $$
 DECLARE
@@ -47,7 +47,8 @@ BEGIN
         END;
 
         BEGIN
-            EXECUTE 'ALTER TABLE app_request ADD CONSTRAINT fk_app_request_request_header FOREIGN KEY (request_id) REFERENCES app_request_header (id)';
+            EXECUTE 'ALTER TABLE app_request ADD CONSTRAINT fk_app_request_request_header '
+                || 'FOREIGN KEY (request_id) REFERENCES app_request_header (id)';
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
@@ -55,6 +56,8 @@ BEGIN
                 NULL;
         END;
     END IF;
-END $$;
+END
+$$;
+@@
 
-ALTER TABLE IF EXISTS app_request DROP CONSTRAINT IF EXISTS ukh9pq78ww5l63y6p9ssblwfv2o;
+ALTER TABLE IF EXISTS app_request DROP CONSTRAINT IF EXISTS ukh9pq78ww5l63y6p9ssblwfv2o@@
