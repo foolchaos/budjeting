@@ -83,7 +83,7 @@ public class RequestsView extends VerticalLayout {
     private final Checkbox selectAllRequests = new Checkbox();
 
     private final Button deleteRequestButton = new Button("Удалить выбранные");
-    private final Button exportRequestButton = new Button("Экспорт в Excel");
+    private final Button exportRequestButton = new Button("Экспорт");
     private Grid.Column<Request> requestSelectionColumn;
 
     private final Grid<RequestPosition> grid = new Grid<>(RequestPosition.class, false);
