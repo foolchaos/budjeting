@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class Contract {
@@ -27,6 +29,9 @@ public class Contract {
     @JoinColumn(name = "counterparty_id")
     private Counterparty counterparty;
 
+    @OneToMany(mappedBy = "contract")
+    private List<RequestPosition> requestPositions = new ArrayList<>();
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -40,4 +45,5 @@ public class Contract {
     public void setResponsible(String responsible) { this.responsible = responsible; }
     public Counterparty getCounterparty() { return counterparty; }
     public void setCounterparty(Counterparty counterparty) { this.counterparty = counterparty; }
+    public List<RequestPosition> getRequestPositions() { return requestPositions; }
 }

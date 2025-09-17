@@ -35,8 +35,8 @@ public class RequestPosition {
     @JoinColumn(name = "counterparty_id", unique = true)
     private Counterparty counterparty;
 
-    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "contract_id", unique = true)
+    @ManyToOne
+    @JoinColumn(name = "contract_id")
     private Contract contract;
 
     @ManyToOne
