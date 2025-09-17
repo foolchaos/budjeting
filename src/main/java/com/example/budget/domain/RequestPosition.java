@@ -31,8 +31,8 @@ public class RequestPosition {
     @JoinColumn(name = "mvz_id")
     private Mvz mvz;
 
-    @OneToOne
-    @JoinColumn(name = "counterparty_id", unique = true)
+    @ManyToOne
+    @JoinColumn(name = "counterparty_id")
     private Counterparty counterparty;
 
     @ManyToOne
