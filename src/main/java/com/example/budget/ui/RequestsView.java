@@ -85,6 +85,8 @@ public class RequestsView extends VerticalLayout {
     private int currentPage = 0;
     private Request selectedRequest;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final int MIN_REQUEST_YEAR = 2000;
+    private static final int MAX_REQUEST_YEAR = 2050;
 
     public RequestsView(RequestService requestService, RequestPositionService requestPositionService,
                         BdzService bdzService, BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
@@ -417,7 +419,12 @@ public class RequestsView extends VerticalLayout {
         Binder<Request> binder = new Binder<>(Request.class);
         TextField name = new TextField("Наименование");
         name.setWidthFull();
-        List<Integer> yearOptions = requestYearOptions();
+        List<Integer> yearOptions = new ArrayList<>(requestYearOptions());
+        Integer targetYear = target.getYear();
+        if (targetYear != null && !yearOptions.contains(targetYear)) {
+            yearOptions.add(targetYear);
+            yearOptions.sort(Integer::compareTo);
+        }
         ComboBox<Integer> year = new ComboBox<>("Год");
         year.setWidthFull();
         year.setItems(yearOptions);
@@ -433,8 +440,17 @@ public class RequestsView extends VerticalLayout {
                 .bind(Request::getYear, Request::setYear);
         binder.setBean(target);
 
-        if (!editing && year.getValue() == null && !yearOptions.isEmpty()) {
-            year.setValue(yearOptions.get(0));
+        if (year.getValue() == null) {
+            int currentYear = LocalDate.now().getYear();
+            Integer defaultYear = null;
+            if (currentYear >= MIN_REQUEST_YEAR && currentYear <= MAX_REQUEST_YEAR) {
+                defaultYear = currentYear;
+            } else if (!yearOptions.isEmpty()) {
+                defaultYear = yearOptions.get(0);
+            }
+            if (defaultYear != null) {
+                year.setValue(defaultYear);
+            }
         }
 
         Button save = new Button("Сохранить", e -> {
@@ -1174,8 +1190,7 @@ public class RequestsView extends VerticalLayout {
     }
 
     private List<Integer> requestYearOptions() {
-        int currentYear = LocalDate.now().getYear();
-        return IntStream.rangeClosed(currentYear, currentYear + 5)
+        return IntStream.rangeClosed(MIN_REQUEST_YEAR, MAX_REQUEST_YEAR)
                 .boxed()
                 .collect(Collectors.toList());
     }
