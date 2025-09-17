@@ -128,7 +128,6 @@ public class RequestsView extends VerticalLayout {
 
         requestsGrid.setDataProvider(requestsDataProvider);
         requestsGrid.setSelectionMode(Grid.SelectionMode.SINGLE);
-        requestsGrid.setSelectionOnClick(false);
         requestsGrid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
         requestsGrid.addClassName("requests-grid");
         requestsGrid.setWidthFull();
@@ -154,12 +153,6 @@ public class RequestsView extends VerticalLayout {
                 .setAutoWidth(true)
                 .setFlexGrow(0);
 
-        requestsGrid.addItemClickListener(event -> {
-            if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
-                return;
-            }
-            requestsGrid.select(event.getItem());
-        });
         requestsGrid.addItemDoubleClickListener(event -> {
             if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
                 return;
@@ -282,6 +275,7 @@ public class RequestsView extends VerticalLayout {
                 updateDeleteRequestsButton();
                 updateSelectAllCheckboxState();
             });
+            checkbox.getElement().addEventListener("click", e -> e.stopPropagation());
             return checkbox;
         }, (checkbox, request) -> {
             ComponentUtil.setData(checkbox, Request.class, request);
