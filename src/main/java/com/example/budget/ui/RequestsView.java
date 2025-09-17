@@ -127,10 +127,10 @@ public class RequestsView extends VerticalLayout {
         layout.setAlignItems(Alignment.STRETCH);
 
         requestsGrid.setDataProvider(requestsDataProvider);
-        requestsGrid.setSelectionMode(Grid.SelectionMode.NONE);
+        requestsGrid.setSelectionMode(Grid.SelectionMode.SINGLE);
+        requestsGrid.setSelectionOnClick(false);
         requestsGrid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
         requestsGrid.addClassName("requests-grid");
-        requestsGrid.setClassNameGenerator(this::requestRowClassName);
         requestsGrid.setWidthFull();
 
         requestSelectionColumn = requestsGrid.addColumn(createRequestSelectionRenderer());
@@ -158,14 +158,17 @@ public class RequestsView extends VerticalLayout {
             if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
                 return;
             }
-            selectRequest(event.getItem());
+            requestsGrid.select(event.getItem());
         });
         requestsGrid.addItemDoubleClickListener(event -> {
             if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
                 return;
             }
+            requestsGrid.select(event.getItem());
             openRequestCard(event.getItem());
         });
+        requestsGrid.addSelectionListener(event ->
+                handleRequestSelection(event.getFirstSelectedItem().orElse(null)));
         requestsGrid.setSizeFull();
 
         Button create = new Button("Создать заявку", e -> openRequestForm(new Request(), false));
@@ -241,29 +244,23 @@ public class RequestsView extends VerticalLayout {
                     .findFirst()
                     .orElse(null);
             if (match != null) {
-                selectRequest(match);
+                requestsGrid.select(match);
                 return;
             }
         }
 
-        selectRequest(null);
+        requestsGrid.deselectAll();
+        handleRequestSelection(null);
     }
 
-    private void selectRequest(Request request) {
-        selectedRequest = request;
-        requestsDataProvider.refreshAll();
-        reloadPositions();
-    }
-
-    private String requestRowClassName(Request request) {
-        return isRequestSelected(request) ? "selected-request" : null;
-    }
-
-    private boolean isRequestSelected(Request request) {
-        if (request == null || selectedRequest == null) {
-            return false;
+    private void handleRequestSelection(Request request) {
+        if (!Objects.equals(selectedRequest, request)) {
+            selectedRequest = request;
+            requestsDataProvider.refreshAll();
+            reloadPositions();
+        } else {
+            updatePositionButtons();
         }
-        return Objects.equals(request.getId(), selectedRequest.getId());
     }
 
     private ComponentRenderer<Checkbox, Request> createRequestSelectionRenderer() {

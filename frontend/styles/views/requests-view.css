@@ -1,11 +1,9 @@
-:host ::deep(.requests-grid [part~="row"].selected-request),
-:host ::deep(.requests-grid [part~="row"].selected-request) [part~="cell"],
-:host ::deep(.requests-grid [part~="cell"].selected-request) {
+:host ::deep(.requests-grid::part(selected-row)),
+:host ::deep(.requests-grid::part(selected-row-cell)) {
     background-color: var(--lumo-primary-color-10pct);
 }
 
-:host ::deep(.requests-grid [part~="row"].selected-request:hover),
-:host ::deep(.requests-grid [part~="row"].selected-request:hover) [part~="cell"],
-:host ::deep(.requests-grid [part~="cell"].selected-request:hover) {
+:host ::deep(.requests-grid::part(selected-row):hover),
+:host ::deep(.requests-grid::part(selected-row-cell):hover) {
     background-color: var(--lumo-primary-color-20pct);
 }
