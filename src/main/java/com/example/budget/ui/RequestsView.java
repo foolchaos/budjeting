@@ -153,6 +153,12 @@ public class RequestsView extends VerticalLayout {
                 .setAutoWidth(true)
                 .setFlexGrow(0);
 
+        requestsGrid.addItemClickListener(event -> {
+            if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
+                return;
+            }
+            requestsGrid.select(event.getItem());
+        });
         requestsGrid.addItemDoubleClickListener(event -> {
             if (event.getColumn() != null && event.getColumn() == requestSelectionColumn) {
                 return;
@@ -275,7 +281,8 @@ public class RequestsView extends VerticalLayout {
                 updateDeleteRequestsButton();
                 updateSelectAllCheckboxState();
             });
-            checkbox.getElement().addEventListener("click", e -> e.stopPropagation());
+            checkbox.getElement().executeJs(
+                    "this.addEventListener('click', function(event) { event.stopPropagation(); });");
             return checkbox;
         }, (checkbox, request) -> {
             ComponentUtil.setData(checkbox, Request.class, request);
