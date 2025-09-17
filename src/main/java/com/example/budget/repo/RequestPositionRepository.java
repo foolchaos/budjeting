@@ -15,4 +15,6 @@ public interface RequestPositionRepository extends JpaRepository<RequestPosition
     List<RequestPosition> findByCounterpartyId(Long counterpartyId);
 
     List<RequestPosition> findByRequestId(Long requestId);
+
+    List<RequestPosition> findByMvzId(Long mvzId);
 }

@@ -11,6 +11,7 @@ import com.example.budget.service.CfoTwoService;
 import com.example.budget.service.ContractService;
 import com.example.budget.service.CounterpartyService;
 import com.example.budget.service.ZgdService;
+import com.example.budget.service.MvzService;
 import com.vaadin.flow.component.HasSize;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -71,7 +72,7 @@ public class ReferencesView extends SplitLayout {
     private final CfoTwoService cfoTwoService;
     private final CfoRepository cfoRepository;
     private final CfoTwoRepository cfoTwoRepository;
-    private final MvzRepository mvzRepository;
+    private final MvzService mvzService;
     private final ContractService contractService;
     private final CounterpartyService counterpartyService;
 
@@ -80,7 +81,7 @@ public class ReferencesView extends SplitLayout {
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
                           CfoService cfoService, CfoTwoService cfoTwoService, CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
-                          MvzRepository mvzRepository, ContractService contractService, CounterpartyService counterpartyService) {
+                          MvzService mvzService, ContractService contractService, CounterpartyService counterpartyService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdService = zgdService;
@@ -88,7 +89,7 @@ public class ReferencesView extends SplitLayout {
         this.cfoTwoService = cfoTwoService;
         this.cfoRepository = cfoRepository;
         this.cfoTwoRepository = cfoTwoRepository;
-        this.mvzRepository = mvzRepository;
+        this.mvzService = mvzService;
         this.contractService = contractService;
         this.counterpartyService = counterpartyService;
 
@@ -1335,7 +1336,7 @@ public class ReferencesView extends SplitLayout {
             String codeValue = normalizeFilterValue(codeFilter.getValue());
             String nameValue = normalizeFilterValue(nameFilter.getValue());
             String cfoValue = normalizeFilterValue(cfoFilter.getValue());
-            return mvzRepository.findAll().stream()
+            return mvzService.findAll().stream()
                     .filter(item -> matchesMvzFilters(item, codeValue, nameValue, cfoValue))
                     .toList();
         };
@@ -1344,8 +1345,8 @@ public class ReferencesView extends SplitLayout {
 
         VerticalLayout layout = genericGrid(Mvz.class, grid,
                 loader,
-                mvzRepository::save,
-                mvzRepository::delete,
+                mvzService::save,
+                mvzService::delete,
                 (selected, refresh) -> {
                     Mvz bean = selected != null ? selected : new Mvz();
                     Dialog d = new Dialog("МВЗ");
@@ -1365,14 +1366,14 @@ public class ReferencesView extends SplitLayout {
                     binder.bind(cfo, Mvz::getCfo, Mvz::setCfo);
                     binder.setBean(bean);
                     Button save = new Button("Сохранить", e -> {
-                        mvzRepository.save(binder.getBean());
+                        mvzService.save(binder.getBean());
                         Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
                         targetRefresh.run();
                         d.close();
                     });
                     Button del = new Button("Удалить", e -> {
                         if (bean.getId() != null) {
-                            mvzRepository.delete(bean);
+                            mvzService.delete(bean);
                         }
                         Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
                         targetRefresh.run();
@@ -1383,7 +1384,61 @@ public class ReferencesView extends SplitLayout {
                     d.add(new FormLayout(code, name, cfo), new HorizontalLayout(save, del, close));
                     return d;
                 },
-                refresh -> refreshHolder[0] = refresh);
+                refresh -> refreshHolder[0] = refresh,
+                context -> {
+                    FileBuffer buffer = new FileBuffer();
+                    Upload upload = new Upload(buffer);
+                    upload.setAcceptedFileTypes(".xlsx");
+                    upload.setMaxFiles(1);
+                    upload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
+                    upload.setDropAllowed(false);
+                    upload.setAutoUpload(true);
+                    upload.getStyle().set("padding", "0");
+                    Button importButton = new Button("Импорт");
+                    importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                    upload.setUploadButton(importButton);
+
+                    UploadI18N i18n = new UploadI18N();
+                    i18n.setError(new UploadI18N.Error()
+                            .setFileIsTooBig("Файл превышает 10 МБ")
+                            .setIncorrectFileType("Неверный тип файла. Ожидается .xlsx")
+                            .setTooManyFiles("Можно загрузить только один файл"));
+                    upload.setI18n(i18n);
+
+                    upload.addFileRejectedListener(event ->
+                            showErrorNotification(event.getErrorMessage()));
+                    upload.addFailedListener(event ->
+                            showErrorNotification("Загрузка файла прервана"));
+                    upload.addSucceededListener(event -> {
+                        Path tempFile = buffer.getFileData().getFile().toPath();
+                        try {
+                            ExcelImportResult result = mvzService.importFromXlsx(tempFile);
+                            showSuccessNotification(String.format(
+                                    "Импорт МВЗ завершён: создано %d, обновлено %d, обработано %d",
+                                    result.created(), result.updated(), result.processed()));
+                            Runnable targetRefresh = refreshHolder[0] != null
+                                    ? refreshHolder[0]
+                                    : context.refresh();
+                            if (targetRefresh != null) {
+                                targetRefresh.run();
+                            }
+                        } catch (ExcelImportException ex) {
+                            showErrorNotification(ex.getMessage());
+                        } catch (Exception ex) {
+                            showErrorNotification("Не удалось импортировать файл");
+                        } finally {
+                            try {
+                                Files.deleteIfExists(tempFile);
+                            } catch (IOException ignored) {
+                            }
+                            upload.clearFileList();
+                        }
+                    });
+
+                    context.actions().setWidthFull();
+                    upload.getStyle().set("margin-left", "auto");
+                    context.actions().add(upload);
+                });
 
         codeFilter.addValueChangeListener(e -> {
             if (refreshHolder[0] != null) {
