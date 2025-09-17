@@ -7,6 +7,8 @@ import com.example.budget.repo.ContractRepository;
 import com.example.budget.repo.CounterpartyRepository;
 import com.example.budget.repo.MvzRepository;
 import com.example.budget.service.BdzService;
+import com.example.budget.service.RequestExcelExportResult;
+import com.example.budget.service.RequestExcelExportService;
 import com.example.budget.service.RequestPositionService;
 import com.example.budget.service.RequestService;
 import com.vaadin.flow.component.ComponentUtil;
@@ -21,6 +23,7 @@ import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
@@ -33,8 +36,12 @@ import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.spring.annotation.UIScope;
+import com.vaadin.flow.server.StreamRegistration;
+import com.vaadin.flow.server.StreamResource;
+import com.vaadin.flow.server.VaadinSession;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Month;
@@ -51,6 +58,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Component
 @UIScope
 @CssImport("./styles/views/requests-view.css")
@@ -64,6 +74,7 @@ public class RequestsView extends VerticalLayout {
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
     private final CounterpartyRepository counterpartyRepository;
+    private final RequestExcelExportService requestExcelExportService;
 
     private final Grid<Request> requestsGrid = new Grid<>(Request.class, false);
     private final List<Request> requests = new ArrayList<>();
@@ -72,6 +83,7 @@ public class RequestsView extends VerticalLayout {
     private final Checkbox selectAllRequests = new Checkbox();
 
     private final Button deleteRequestButton = new Button("Удалить выбранные");
+    private final Button exportRequestButton = new Button("Экспорт в Excel");
     private Grid.Column<Request> requestSelectionColumn;
 
     private final Grid<RequestPosition> grid = new Grid<>(RequestPosition.class, false);
@@ -88,10 +100,13 @@ public class RequestsView extends VerticalLayout {
     private static final int MIN_REQUEST_YEAR = 2000;
     private static final int MAX_REQUEST_YEAR = 2050;
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(RequestsView.class);
+
     public RequestsView(RequestService requestService, RequestPositionService requestPositionService,
                         BdzService bdzService, BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
                         MvzRepository mvzRepository, ContractRepository contractRepository,
-                        CounterpartyRepository counterpartyRepository) {
+                        CounterpartyRepository counterpartyRepository,
+                        RequestExcelExportService requestExcelExportService) {
         this.requestService = requestService;
         this.requestPositionService = requestPositionService;
         this.bdzService = bdzService;
@@ -100,10 +115,14 @@ public class RequestsView extends VerticalLayout {
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
         this.counterpartyRepository = counterpartyRepository;
+        this.requestExcelExportService = requestExcelExportService;
 
         setSizeFull();
         setPadding(false);
         setSpacing(false);
+
+        exportRequestButton.addClickListener(e -> exportSelectedRequest());
+        exportRequestButton.setEnabled(false);
 
         configureSelectAllRequestsCheckbox();
 
@@ -183,7 +202,7 @@ public class RequestsView extends VerticalLayout {
             reloadRequests();
         });
 
-        HorizontalLayout actions = new HorizontalLayout(create, deleteRequestButton);
+        HorizontalLayout actions = new HorizontalLayout(create, deleteRequestButton, exportRequestButton);
         actions.setWidthFull();
 
         layout.add(actions, requestsGrid);
@@ -234,7 +253,7 @@ public class RequestsView extends VerticalLayout {
                 .collect(Collectors.toSet());
         checkedRequestIds.retainAll(existingIds);
         requestsDataProvider.refreshAll();
-        updateDeleteRequestsButton();
+        updateRequestActionButtons();
         updateSelectAllCheckboxState();
 
         if (selectedId != null) {
@@ -278,7 +297,7 @@ public class RequestsView extends VerticalLayout {
                 } else {
                     checkedRequestIds.remove(current.getId());
                 }
-                updateDeleteRequestsButton();
+                updateRequestActionButtons();
                 updateSelectAllCheckboxState();
             });
             checkbox.getElement().executeJs(
@@ -293,8 +312,29 @@ public class RequestsView extends VerticalLayout {
         });
     }
 
-    private void updateDeleteRequestsButton() {
+    private void updateRequestActionButtons() {
         deleteRequestButton.setEnabled(!checkedRequestIds.isEmpty());
+        exportRequestButton.setEnabled(checkedRequestIds.size() == 1);
+    }
+
+    private void exportSelectedRequest() {
+        if (checkedRequestIds.size() != 1) {
+            Notification.show("Выберите одну заявку для экспорта");
+            return;
+        }
+        Long requestId = checkedRequestIds.iterator().next();
+        try {
+            RequestExcelExportResult result = requestExcelExportService.exportRequest(requestId);
+            StreamResource resource = new StreamResource(result.fileName(),
+                    () -> new ByteArrayInputStream(result.content()));
+            resource.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            resource.setCacheTime(0);
+            StreamRegistration registration = VaadinSession.getCurrent().getResourceRegistry().registerResource(resource);
+            getUI().ifPresent(ui -> ui.getPage().open(registration.getResourceUri().toString()));
+        } catch (Exception ex) {
+            LOGGER.error("Failed to export request {}", requestId, ex);
+            Notification.show("Не удалось экспортировать заявку");
+        }
     }
 
     private void configureSelectAllRequestsCheckbox() {
@@ -313,7 +353,7 @@ public class RequestsView extends VerticalLayout {
                 checkedRequestIds.clear();
             }
             requestsDataProvider.refreshAll();
-            updateDeleteRequestsButton();
+            updateRequestActionButtons();
             updateSelectAllCheckboxState();
         });
         selectAllRequests.getElement().getStyle().set("margin", "0 auto");
