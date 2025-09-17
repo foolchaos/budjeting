@@ -55,7 +55,6 @@ BEGIN
                 NULL;
         END;
     END IF;
-END
-$$;
+END $$;
 
 ALTER TABLE IF EXISTS app_request DROP CONSTRAINT IF EXISTS ukh9pq78ww5l63y6p9ssblwfv2o;
