@@ -642,15 +642,15 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Период")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        grid.addColumn(r -> yesNo(r.isInputObject()))
+                .setHeader("Вводный объект")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getAmountNoVat()))
                 .setHeader("Сумма/млн. руб. (без НДС)")
                 .setAutoWidth(true)
                 .setFlexGrow(1)
                 .setTextAlign(ColumnTextAlign.END);
-        grid.addColumn(r -> yesNo(r.isInputObject()))
-                .setHeader("Вводный объект")
-                .setAutoWidth(true)
-                .setFlexGrow(1);
 
         grid.addItemClickListener(e -> openPositionCard(e.getItem()));
     }
