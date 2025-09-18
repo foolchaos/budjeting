@@ -30,6 +30,9 @@ public class Request {
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RequestPosition> positions = new ArrayList<>();
 
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ContractAmount> contractAmounts = new ArrayList<>();
+
     public Long getId() {
         return id;
     }
@@ -64,5 +67,13 @@ public class Request {
 
     public void setPositions(List<RequestPosition> positions) {
         this.positions = positions;
+    }
+
+    public List<ContractAmount> getContractAmounts() {
+        return contractAmounts;
+    }
+
+    public void setContractAmounts(List<ContractAmount> contractAmounts) {
+        this.contractAmounts = contractAmounts;
     }
 }

@@ -38,6 +38,10 @@ public class RequestPosition {
     private Contract contract;
 
     @ManyToOne
+    @JoinColumn(name = "contract_amount_id")
+    private ContractAmount contractAmount;
+
+    @ManyToOne
     @JoinColumn(name = "bo_id")
     private Bo bo;
 
@@ -74,6 +78,8 @@ public class RequestPosition {
     public void setCounterparty(Counterparty counterparty) { this.counterparty = counterparty; }
     public Contract getContract() { return contract; }
     public void setContract(Contract contract) { this.contract = contract; }
+    public ContractAmount getContractAmount() { return contractAmount; }
+    public void setContractAmount(ContractAmount contractAmount) { this.contractAmount = contractAmount; }
     public Bo getBo() { return bo; }
     public void setBo(Bo bo) { this.bo = bo; }
     public String getVgo() { return vgo; }

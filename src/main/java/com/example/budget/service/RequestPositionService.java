@@ -6,7 +6,9 @@ import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class RequestPositionService {
@@ -17,14 +19,15 @@ public class RequestPositionService {
     private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
+    private final ContractAmountRepository contractAmountRepository;
     private final CounterpartyRepository counterpartyRepository;
     private final ZgdRepository zgdRepository;
 
     public RequestPositionService(RequestPositionRepository requestPositionRepository, RequestRepository requestRepository,
                                   BoRepository boRepository, BdzRepository bdzRepository,
                                   CfoTwoRepository cfoTwoRepository, MvzRepository mvzRepository,
-                                  ContractRepository contractRepository, CounterpartyRepository counterpartyRepository,
-                                  ZgdRepository zgdRepository) {
+                                  ContractRepository contractRepository, ContractAmountRepository contractAmountRepository,
+                                  CounterpartyRepository counterpartyRepository, ZgdRepository zgdRepository) {
         this.requestPositionRepository = requestPositionRepository;
         this.requestRepository = requestRepository;
         this.boRepository = boRepository;
@@ -32,6 +35,7 @@ public class RequestPositionService {
         this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
+        this.contractAmountRepository = contractAmountRepository;
         this.counterpartyRepository = counterpartyRepository;
         this.zgdRepository = zgdRepository;
     }
@@ -63,6 +67,18 @@ public class RequestPositionService {
 
     @Transactional
     public RequestPosition save(RequestPosition r) {
+        Long previousRequestId = null;
+        Long previousContractId = null;
+        if (r.getId() != null) {
+            RequestPosition existing = requestPositionRepository.findById(r.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Request position not found: " + r.getId()));
+            if (existing.getRequest() != null) {
+                previousRequestId = existing.getRequest().getId();
+            }
+            if (existing.getContract() != null) {
+                previousContractId = existing.getContract().getId();
+            }
+        }
         if (r.getRequest() != null && r.getRequest().getId() != null) {
             r.setRequest(requestRepository.getReferenceById(r.getRequest().getId()));
         }
@@ -83,6 +99,8 @@ public class RequestPositionService {
             Contract managedContract = contractRepository.findById(contractId)
                     .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
             r.setContract(managedContract);
+        } else {
+            r.setContract(null);
         }
         if (r.getCounterparty() != null && r.getCounterparty().getId() != null) {
             Long counterpartyId = r.getCounterparty().getId();
@@ -93,11 +111,47 @@ public class RequestPositionService {
         if (r.getZgd() != null && r.getZgd().getId() != null) {
             r.setZgd(zgdRepository.getReferenceById(r.getZgd().getId()));
         }
-        return requestPositionRepository.save(r);
+        ContractAmount contractAmount = null;
+        if (r.getRequest() != null && r.getContract() != null) {
+            Long requestId = r.getRequest().getId();
+            Long contractId = r.getContract().getId();
+            contractAmount = contractAmountRepository.findByRequestIdAndContractId(requestId, contractId)
+                    .orElseGet(() -> {
+                        ContractAmount amount = new ContractAmount();
+                        amount.setRequest(r.getRequest());
+                        amount.setContract(r.getContract());
+                        amount.setAmount(BigDecimal.ZERO);
+                        return contractAmountRepository.save(amount);
+                    });
+        }
+        r.setContractAmount(contractAmount);
+
+        RequestPosition saved = requestPositionRepository.save(r);
+
+        Long newRequestId = saved.getRequest() != null ? saved.getRequest().getId() : null;
+        Long newContractId = saved.getContract() != null ? saved.getContract().getId() : null;
+
+        if (previousRequestId != null && previousContractId != null &&
+                (!Objects.equals(previousRequestId, newRequestId) || !Objects.equals(previousContractId, newContractId))) {
+            recalculateContractAmount(previousRequestId, previousContractId);
+        }
+
+        if (newRequestId != null && newContractId != null) {
+            recalculateContractAmount(newRequestId, newContractId);
+        }
+
+        return saved;
     }
 
     public void deleteById(Long id) {
-        requestPositionRepository.deleteById(id);
+        requestPositionRepository.findById(id).ifPresent(position -> {
+            Long requestId = position.getRequest() != null ? position.getRequest().getId() : null;
+            Long contractId = position.getContract() != null ? position.getContract().getId() : null;
+            requestPositionRepository.delete(position);
+            if (requestId != null && contractId != null) {
+                recalculateContractAmount(requestId, contractId);
+            }
+        });
     }
 
     public List<Bo> findBoByBdz(Long bdzId) {
@@ -133,11 +187,44 @@ public class RequestPositionService {
         if (r.getContract() != null) {
             Hibernate.initialize(r.getContract());
         }
+        if (r.getContractAmount() != null) {
+            Hibernate.initialize(r.getContractAmount());
+        }
         if (r.getCounterparty() != null) {
             Hibernate.initialize(r.getCounterparty());
         }
         if (r.getZgd() != null) {
             Hibernate.initialize(r.getZgd());
         }
+    }
+
+    private void recalculateContractAmount(Long requestId, Long contractId) {
+        if (requestId == null || contractId == null) {
+            return;
+        }
+
+        long positionsCount = requestPositionRepository.countByRequestIdAndContractId(requestId, contractId);
+        if (positionsCount == 0) {
+            contractAmountRepository.findByRequestIdAndContractId(requestId, contractId)
+                    .ifPresent(contractAmountRepository::delete);
+            return;
+        }
+
+        BigDecimal total = requestPositionRepository
+                .sumAmountNoVatByRequestIdAndContractId(requestId, contractId);
+        if (total == null) {
+            total = BigDecimal.ZERO;
+        }
+
+        ContractAmount contractAmount = contractAmountRepository
+                .findByRequestIdAndContractId(requestId, contractId)
+                .orElseGet(() -> {
+                    ContractAmount amount = new ContractAmount();
+                    amount.setRequest(requestRepository.getReferenceById(requestId));
+                    amount.setContract(contractRepository.getReferenceById(contractId));
+                    return amount;
+                });
+        contractAmount.setAmount(total);
+        contractAmountRepository.save(contractAmount);
     }
 }

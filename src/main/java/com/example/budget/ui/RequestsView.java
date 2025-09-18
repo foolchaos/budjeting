@@ -654,6 +654,11 @@ public class RequestsView extends VerticalLayout {
                 .setAutoWidth(true)
                 .setFlexGrow(1)
                 .setTextAlign(ColumnTextAlign.END);
+        grid.addColumn(r -> valueOrDash(r.getContractAmount() != null ? r.getContractAmount().getAmount() : null))
+                .setHeader("Сумма по договору")
+                .setAutoWidth(true)
+                .setFlexGrow(1)
+                .setTextAlign(ColumnTextAlign.END);
 
         grid.addItemClickListener(e -> openPositionCard(e.getItem()));
     }
@@ -784,7 +789,8 @@ public class RequestsView extends VerticalLayout {
                         entry("Внутренний номер", detailed.getContract() != null ? detailed.getContract().getInternalNumber() : null),
                         entry("Внешний номер", detailed.getContract() != null ? detailed.getContract().getExternalNumber() : null),
                         entry("Дата договора", detailed.getContract() != null ? detailed.getContract().getContractDate() : null),
-                        entry("Ответственный", detailed.getContract() != null ? detailed.getContract().getResponsible() : null)
+                        entry("Ответственный", detailed.getContract() != null ? detailed.getContract().getResponsible() : null),
+                        entry("Сумма по договору", detailed.getContractAmount() != null ? detailed.getContractAmount().getAmount() : null)
                 )
         );
 
