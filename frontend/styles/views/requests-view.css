@@ -8,3 +8,7 @@
 :host ::deep(.requests-grid::part(selected-row-cell):hover) {
     background-color: var(--lumo-primary-color-40pct);
 }
+
+:host ::deep(.requests-export-button) {
+    margin-left: auto;
+}

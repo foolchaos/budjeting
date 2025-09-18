@@ -121,6 +121,7 @@ public class RequestsView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
+        exportRequestButton.addClassName("requests-export-button");
         exportRequestButton.addClickListener(e -> exportSelectedRequest());
         exportRequestButton.setEnabled(false);
 
