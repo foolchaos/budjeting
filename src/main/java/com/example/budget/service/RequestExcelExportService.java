@@ -5,6 +5,7 @@ import com.example.budget.domain.Bo;
 import com.example.budget.domain.Cfo;
 import com.example.budget.domain.CfoTwo;
 import com.example.budget.domain.Contract;
+import com.example.budget.domain.ContractAmount;
 import com.example.budget.domain.Counterparty;
 import com.example.budget.domain.Mvz;
 import com.example.budget.domain.Request;
@@ -112,7 +113,7 @@ public class RequestExcelExportService {
                 setStringCell(row, 11, safeString(position.getSubject()), dataStyle);
                 setStringCell(row, 12, safeString(position.getPeriod()), dataStyle);
                 setAmountCell(row, 13, position.getAmountNoVat(), numericAmountStyle);
-                setAmountCell(row, 14, position.isInputObject() ? position.getAmount() : null, numericAmountStyle);
+                setAmountCell(row, 14, resolveInputObjectAmount(position), numericAmountStyle);
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -188,6 +189,17 @@ public class RequestExcelExportService {
 
     private void mergeCells(Sheet sheet, int rowIndex, int firstColumn, int lastColumn) {
         sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, firstColumn, lastColumn));
+    }
+
+    private BigDecimal resolveInputObjectAmount(RequestPosition position) {
+        if (position == null || !position.isInputObject()) {
+            return null;
+        }
+        ContractAmount contractAmount = position.getContractAmount();
+        if (contractAmount != null && contractAmount.getAmount() != null) {
+            return contractAmount.getAmount();
+        }
+        return position.getAmount();
     }
 
     private String formatCodeAndName(Bdz bdz) {
