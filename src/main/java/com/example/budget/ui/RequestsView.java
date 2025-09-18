@@ -623,6 +623,13 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Дата договора")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        grid.addColumn(r -> {
+                    Contract contract = r.getContract();
+                    return contract != null ? valueOrDash(contract.getResponsible()) : "—";
+                })
+                .setHeader("Ответственный по договору (Ф.И.О.)")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getProcurementMethod()))
                 .setHeader("Способ закупки")
                 .setAutoWidth(true)
