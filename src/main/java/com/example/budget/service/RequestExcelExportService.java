@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Service
@@ -86,6 +87,7 @@ public class RequestExcelExportService {
 
             CellStyle headerStyle = createHeaderStyle(workbook);
             CellStyle dataStyle = createDataStyle(workbook);
+            CellStyle numericAmountStyle = createNumericAmountStyle(workbook);
             Row headerRow = sheet.createRow(rowIndex++);
             for (int i = 0; i < headers.length; i++) {
                 setStringCell(headerRow, i, headers[i], headerStyle);
@@ -109,8 +111,8 @@ public class RequestExcelExportService {
                 setStringCell(row, 10, extractContractResponsible(position.getContract()), dataStyle);
                 setStringCell(row, 11, safeString(position.getSubject()), dataStyle);
                 setStringCell(row, 12, safeString(position.getPeriod()), dataStyle);
-                setStringCell(row, 13, formatAmount(position.getAmountNoVat()), dataStyle);
-                setStringCell(row, 14, position.isInputObject() ? formatAmount(position.getAmount()) : "", dataStyle);
+                setAmountCell(row, 13, position.getAmountNoVat(), numericAmountStyle);
+                setAmountCell(row, 14, position.isInputObject() ? position.getAmount() : null, numericAmountStyle);
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -139,6 +141,13 @@ public class RequestExcelExportService {
         return style;
     }
 
+    private CellStyle createNumericAmountStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        applyAllBorders(style);
+        style.setDataFormat(workbook.createDataFormat().getFormat("# ##0.000"));
+        return style;
+    }
+
     private void applyAllBorders(CellStyle style) {
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderBottom(BorderStyle.THIN);
@@ -155,6 +164,17 @@ public class RequestExcelExportService {
         cell.setCellValue(value != null ? value : "");
         if (style != null) {
             cell.setCellStyle(style);
+        }
+    }
+
+    private void setAmountCell(Row row, int columnIndex, BigDecimal value, CellStyle style) {
+        Cell cell = row.createCell(columnIndex);
+        if (style != null) {
+            cell.setCellStyle(style);
+        }
+        if (value != null) {
+            BigDecimal scaledValue = value.setScale(3, RoundingMode.HALF_UP);
+            cell.setCellValue(scaledValue.doubleValue());
         }
     }
 
@@ -247,13 +267,6 @@ public class RequestExcelExportService {
             return fullName + ", " + department;
         }
         return hasText(fullName) ? fullName : department;
-    }
-
-    private String formatAmount(BigDecimal value) {
-        if (value == null) {
-            return "";
-        }
-        return value.stripTrailingZeros().toPlainString();
     }
 
     private String buildFileName(Request request) {
