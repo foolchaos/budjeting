@@ -32,6 +32,9 @@ public class Contract {
     @OneToMany(mappedBy = "contract")
     private List<RequestPosition> requestPositions = new ArrayList<>();
 
+    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ContractAmount> contractAmounts = new ArrayList<>();
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -47,4 +50,6 @@ public class Contract {
     public void setCounterparty(Counterparty counterparty) { this.counterparty = counterparty; }
     public List<RequestPosition> getRequestPositions() { return requestPositions; }
     public void setRequestPositions(List<RequestPosition> requestPositions) { this.requestPositions = requestPositions; }
+    public List<ContractAmount> getContractAmounts() { return contractAmounts; }
+    public void setContractAmounts(List<ContractAmount> contractAmounts) { this.contractAmounts = contractAmounts; }
 }
