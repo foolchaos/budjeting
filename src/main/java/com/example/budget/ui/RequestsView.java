@@ -44,6 +44,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.format.DateTimeFormatter;
@@ -584,6 +587,10 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("БО")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        grid.addColumn(r -> formatZgd(r.getZgd()))
+                .setHeader("ЗГД")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getVgo()))
                 .setHeader("ВГО")
                 .setAutoWidth(true)
@@ -623,6 +630,13 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Дата договора")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        grid.addColumn(r -> {
+                    Contract contract = r.getContract();
+                    return contract != null ? valueOrDash(contract.getResponsible()) : "—";
+                })
+                .setHeader("Ответственный по договору (Ф.И.О.)")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getProcurementMethod()))
                 .setHeader("Способ закупки")
                 .setAutoWidth(true)
@@ -631,15 +645,15 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Период")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        grid.addColumn(r -> yesNo(r.isInputObject()))
+                .setHeader("Вводный объект")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getAmountNoVat()))
                 .setHeader("Сумма/млн. руб. (без НДС)")
                 .setAutoWidth(true)
                 .setFlexGrow(1)
                 .setTextAlign(ColumnTextAlign.END);
-        grid.addColumn(r -> yesNo(r.isInputObject()))
-                .setHeader("Вводный объект")
-                .setAutoWidth(true)
-                .setFlexGrow(1);
 
         grid.addItemClickListener(e -> openPositionCard(e.getItem()));
     }
@@ -1233,6 +1247,24 @@ public class RequestsView extends VerticalLayout {
         return namePart;
     }
 
+    private String formatZgd(Zgd zgd) {
+        if (zgd == null) {
+            return "—";
+        }
+        String fullName = zgd.getFullName() != null ? zgd.getFullName().trim() : "";
+        String department = zgd.getDepartment() != null ? zgd.getDepartment().trim() : "";
+        if (!fullName.isEmpty() && !department.isEmpty()) {
+            return fullName + " — " + department;
+        }
+        if (!fullName.isEmpty()) {
+            return fullName;
+        }
+        if (!department.isEmpty()) {
+            return department;
+        }
+        return "—";
+    }
+
     private InfoEntry entry(String label, String value) {
         return new InfoEntry(label, valueOrDash(value));
     }
@@ -1261,7 +1293,16 @@ public class RequestsView extends VerticalLayout {
     }
 
     private String valueOrDash(BigDecimal value) {
-        return value != null ? value.toPlainString() : "—";
+        return value != null ? formatAmount(value) : "—";
+    }
+
+    private String formatAmount(BigDecimal value) {
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("ru", "RU"));
+        symbols.setGroupingSeparator(' ');
+        symbols.setDecimalSeparator(',');
+        DecimalFormat formatter = new DecimalFormat("#,##0.000", symbols);
+        formatter.setRoundingMode(RoundingMode.HALF_UP);
+        return formatter.format(value);
     }
 
     private String valueOrDash(LocalDate value) {
