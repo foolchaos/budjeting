@@ -62,14 +62,14 @@ ALTER TABLE app_request_header
 
 DO $$
 BEGIN
-    IF NOT EXISTS (
+    IF EXISTS (
         SELECT 1
         FROM information_schema.table_constraints
         WHERE constraint_schema = current_schema()
           AND table_name = 'app_request_header'
           AND constraint_name = 'uk_app_request_header_cfo'
     ) THEN
-        EXECUTE 'ALTER TABLE app_request_header ADD CONSTRAINT uk_app_request_header_cfo UNIQUE (cfo_id)';
+        EXECUTE 'ALTER TABLE app_request_header DROP CONSTRAINT uk_app_request_header_cfo';
     END IF;
 
     IF NOT EXISTS (

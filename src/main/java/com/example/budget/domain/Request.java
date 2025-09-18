@@ -22,8 +22,8 @@ public class Request {
     @Column(name = "request_year", nullable = false)
     private Integer year;
 
-    @OneToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "cfo_id", unique = true)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "cfo_id")
     private Cfo cfo;
 
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
