@@ -766,6 +766,14 @@ public class RequestsView extends VerticalLayout {
                         entry("Сумма без НДС (млн)", detailed.getAmountNoVat()),
                         entry("Вводный объект", detailed.isInputObject())
                 ),
+                infoSection("ЦФО I",
+                        entry("Код ЦФО I", detailed.getRequest() != null && detailed.getRequest().getCfo() != null
+                                ? detailed.getRequest().getCfo().getCode()
+                                : null),
+                        entry("Наименование ЦФО I", detailed.getRequest() != null && detailed.getRequest().getCfo() != null
+                                ? detailed.getRequest().getCfo().getName()
+                                : null)
+                ),
                 infoSection("ЦФО II и МВЗ",
                         entry("Код ЦФО II", detailed.getCfo2() != null ? detailed.getCfo2().getCode() : null),
                         entry("Наименование ЦФО II", detailed.getCfo2() != null ? detailed.getCfo2().getName() : null),
