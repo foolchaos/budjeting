@@ -16,6 +16,7 @@ spring:
   sql:
     init:
       mode: always
+      separator: "@@"
   jackson:
     time-zone: UTC
 
