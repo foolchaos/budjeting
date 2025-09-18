@@ -831,7 +831,7 @@ public class RequestsView extends VerticalLayout {
 
     private void openWizard(RequestPosition bean, boolean editing) {
         Dialog d = new Dialog(editing ? "Редактирование позиции № " + bean.getNumber() : "Создание позиции заявки");
-        d.setWidth("600px");
+        d.setWidth("700px");
 
         Binder<RequestPosition> binder = new Binder<>(RequestPosition.class);
 
@@ -1094,54 +1094,17 @@ public class RequestsView extends VerticalLayout {
             }
         }
 
-        Span stepIndicator = new Span("Шаг 1 из 4");
-        VerticalLayout step1 = stepLayout(requestName, cfo, mvz);
-        VerticalLayout step2 = stepLayout(bdz, bo, zgd);
-        VerticalLayout step3 = stepLayout(counterparty, contract);
-        VerticalLayout step4 = stepLayout(vgo, amountNoVat, subject, period, pm, input);
-        step2.setVisible(false);
-        step3.setVisible(false);
-        step4.setVisible(false);
-
-        Button back = new Button("Назад");
-        Button next = new Button("Далее");
-        back.setEnabled(false);
-
-        back.addClickListener(e -> {
-            if (step4.isVisible()) {
-                step4.setVisible(false);
-                step3.setVisible(true);
-                stepIndicator.setText("Шаг 3 из 4");
-                next.setEnabled(true);
-            } else if (step3.isVisible()) {
-                step3.setVisible(false);
-                step2.setVisible(true);
-                stepIndicator.setText("Шаг 2 из 4");
-            } else if (step2.isVisible()) {
-                step2.setVisible(false);
-                step1.setVisible(true);
-                stepIndicator.setText("Шаг 1 из 4");
-                back.setEnabled(false);
-            }
-        });
-
-        next.addClickListener(e -> {
-            if (step1.isVisible()) {
-                step1.setVisible(false);
-                step2.setVisible(true);
-                stepIndicator.setText("Шаг 2 из 4");
-                back.setEnabled(true);
-            } else if (step2.isVisible()) {
-                step2.setVisible(false);
-                step3.setVisible(true);
-                stepIndicator.setText("Шаг 3 из 4");
-            } else if (step3.isVisible()) {
-                step3.setVisible(false);
-                step4.setVisible(true);
-                stepIndicator.setText("Шаг 4 из 4");
-                next.setEnabled(false);
-            }
-        });
+        FormLayout formLayout = new FormLayout();
+        formLayout.setWidthFull();
+        formLayout.setResponsiveSteps(
+                new FormLayout.ResponsiveStep("0", 1),
+                new FormLayout.ResponsiveStep("600px", 2)
+        );
+        formLayout.add(requestName, cfo, mvz, bdz, bo, zgd, counterparty, contract, vgo, amountNoVat, subject, period, pm, input);
+        formLayout.setColspan(requestName, 2);
+        formLayout.setColspan(zgd, 2);
+        formLayout.setColspan(subject, 2);
+        formLayout.setColspan(input, 2);
 
         Button save = new Button(editing ? "Сохранить изменения" : "Сохранить", e -> {
             RequestPosition current = binder.getBean();
@@ -1163,22 +1126,20 @@ public class RequestsView extends VerticalLayout {
         });
         Button close = new Button("Закрыть", e -> d.close());
 
-        HorizontalLayout actions = new HorizontalLayout(back, next, save, close);
+        HorizontalLayout actions = new HorizontalLayout(save, close);
         actions.setPadding(false);
         actions.setSpacing(true);
         actions.setWidthFull();
+        actions.setJustifyContentMode(JustifyContentMode.END);
         actions.getStyle().set("margin-top", "var(--lumo-space-m)");
 
-        VerticalLayout layout = new VerticalLayout(stepIndicator, step1, step2, step3, step4, actions);
+        VerticalLayout layout = new VerticalLayout(formLayout, actions);
         layout.setPadding(false);
-        layout.setSpacing(false);
+        layout.setSpacing(true);
         layout.setAlignItems(Alignment.STRETCH);
         layout.setWidthFull();
-        layout.getStyle().set("max-width", "600px");
+        layout.getStyle().set("max-width", "700px");
         layout.getStyle().set("margin", "0 auto");
-        stepIndicator.getStyle().set("align-self", "flex-start");
-        stepIndicator.getStyle().set("margin-bottom", "var(--lumo-space-m)");
-        stepIndicator.getStyle().set("font-weight", "600");
 
         d.add(layout);
         d.open();
@@ -1214,17 +1175,6 @@ public class RequestsView extends VerticalLayout {
 
         section.add(layout);
         return section;
-    }
-
-    private VerticalLayout stepLayout(com.vaadin.flow.component.Component... components) {
-        VerticalLayout layout = new VerticalLayout(components);
-        layout.setPadding(false);
-        layout.setSpacing(false);
-        layout.setAlignItems(Alignment.STRETCH);
-        layout.setWidthFull();
-        layout.getStyle().set("row-gap", "var(--lumo-space-m)");
-        layout.getStyle().set("margin-bottom", "var(--lumo-space-m)");
-        return layout;
     }
 
     private <T> T findById(List<T> items, Function<T, Long> idExtractor, Long id) {
