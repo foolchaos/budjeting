@@ -44,6 +44,7 @@ public class RequestService {
 
     private void initializePositions(Request request) {
         Hibernate.initialize(request.getPositions());
+        Hibernate.initialize(request.getCfo());
         for (RequestPosition position : request.getPositions()) {
             Hibernate.initialize(position);
         }

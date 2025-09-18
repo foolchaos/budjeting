@@ -2,6 +2,7 @@ package com.example.budget.ui;
 
 import com.example.budget.domain.*;
 import com.example.budget.repo.BoRepository;
+import com.example.budget.repo.CfoRepository;
 import com.example.budget.repo.CfoTwoRepository;
 import com.example.budget.repo.ContractRepository;
 import com.example.budget.repo.CounterpartyRepository;
@@ -70,6 +71,7 @@ public class RequestsView extends VerticalLayout {
     private final RequestPositionService requestPositionService;
     private final BdzService bdzService;
     private final BoRepository boRepository;
+    private final CfoRepository cfoRepository;
     private final CfoTwoRepository cfoTwoRepository;
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
@@ -103,7 +105,8 @@ public class RequestsView extends VerticalLayout {
     private static final Logger LOGGER = LoggerFactory.getLogger(RequestsView.class);
 
     public RequestsView(RequestService requestService, RequestPositionService requestPositionService,
-                        BdzService bdzService, BoRepository boRepository, CfoTwoRepository cfoTwoRepository,
+                        BdzService bdzService, BoRepository boRepository, CfoRepository cfoRepository,
+                        CfoTwoRepository cfoTwoRepository,
                         MvzRepository mvzRepository, ContractRepository contractRepository,
                         CounterpartyRepository counterpartyRepository,
                         RequestExcelExportService requestExcelExportService) {
@@ -111,6 +114,7 @@ public class RequestsView extends VerticalLayout {
         this.requestPositionService = requestPositionService;
         this.bdzService = bdzService;
         this.boRepository = boRepository;
+        this.cfoRepository = cfoRepository;
         this.cfoTwoRepository = cfoTwoRepository;
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
@@ -161,6 +165,10 @@ public class RequestsView extends VerticalLayout {
 
         requestsGrid.addColumn(Request::getName)
                 .setHeader("Заявка")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
+        requestsGrid.addColumn(r -> valueOrDash(r.getCfo() != null ? r.getCfo().getCode() : null))
+                .setHeader("ЦФО I")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
         requestsGrid.addColumn(r -> valueOrDash(r.getYear()))
@@ -430,6 +438,7 @@ public class RequestsView extends VerticalLayout {
         form.setWidthFull();
         form.addFormItem(new Span(valueOrDash(detailed.getName())), "Наименование");
         form.addFormItem(new Span(valueOrDash(detailed.getYear())), "Год");
+        form.addFormItem(new Span(valueOrDash(formatCodeName(detailed.getCfo()))), "ЦФО I");
         int count = detailed.getPositions() != null ? detailed.getPositions().size() : 0;
         form.addFormItem(new Span(String.valueOf(count)), "Количество позиций");
 
@@ -481,12 +490,31 @@ public class RequestsView extends VerticalLayout {
         year.setAllowCustomValue(false);
         year.setRequiredIndicatorVisible(true);
 
+        ComboBox<Cfo> cfoField = new ComboBox<>("ЦФО I");
+        List<Cfo> cfoOptions = new ArrayList<>(cfoRepository.findAll());
+        if (target.getCfo() != null) {
+            Cfo selectedCfo = findById(cfoOptions, Cfo::getId, target.getCfo().getId());
+            if (selectedCfo != null) {
+                target.setCfo(selectedCfo);
+            } else {
+                cfoOptions.add(target.getCfo());
+            }
+        }
+        cfoField.setItems(cfoOptions);
+        cfoField.setItemLabelGenerator(this::formatCodeName);
+        cfoField.setWidthFull();
+        cfoField.setClearButtonVisible(true);
+        cfoField.setRequiredIndicatorVisible(true);
+
         binder.forField(name)
                 .asRequired("Введите наименование")
                 .bind(Request::getName, Request::setName);
         binder.forField(year)
                 .asRequired("Выберите год")
                 .bind(Request::getYear, Request::setYear);
+        binder.forField(cfoField)
+                .asRequired("Выберите ЦФО I")
+                .bind(Request::getCfo, Request::setCfo);
         binder.setBean(target);
 
         if (year.getValue() == null) {
@@ -517,7 +545,7 @@ public class RequestsView extends VerticalLayout {
         actions.setWidthFull();
         actions.setJustifyContentMode(JustifyContentMode.END);
 
-        VerticalLayout content = new VerticalLayout(name, year);
+        VerticalLayout content = new VerticalLayout(name, year, cfoField);
         content.setPadding(false);
         content.setSpacing(true);
         content.setWidthFull();
@@ -1179,6 +1207,10 @@ public class RequestsView extends VerticalLayout {
                 .filter(item -> id.equals(idExtractor.apply(item)))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private String formatCodeName(Cfo cfo) {
+        return cfo != null ? formatCodeName(cfo.getCode(), cfo.getName()) : null;
     }
 
     private String formatCodeName(String code, String name) {
