@@ -17,6 +17,112 @@ INSERT INTO app_request_header (name, request_year)
 SELECT 'Заявка без названия', EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER
 WHERE NOT EXISTS (SELECT 1 FROM app_request_header);
 
+ALTER TABLE app_request_header
+    ADD COLUMN IF NOT EXISTS cfo_id BIGINT;
+
+DO $$
+DECLARE
+    constraint_name TEXT;
+BEGIN
+    SELECT con.conname
+    INTO constraint_name
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    WHERE rel.relname = 'app_request_header'
+      AND con.contype = 'u'
+      AND con.conkey = ARRAY (
+          SELECT attnum
+          FROM pg_attribute
+          WHERE attrelid = rel.oid
+            AND attname = 'cfo_id'
+      )
+    LIMIT 1;
+
+    IF constraint_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE app_request_header DROP CONSTRAINT %I', constraint_name);
+    END IF;
+END
+$$;
+
+DO $$
+DECLARE
+    default_cfo_id BIGINT;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = current_schema()
+          AND table_name = 'cfo'
+    ) THEN
+        SELECT id
+        INTO default_cfo_id
+        FROM cfo
+        ORDER BY id
+        LIMIT 1;
+
+        IF default_cfo_id IS NOT NULL THEN
+            UPDATE app_request_header
+            SET cfo_id = default_cfo_id
+            WHERE cfo_id IS NULL;
+        END IF;
+    END IF;
+END
+$$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'app_request_header'
+          AND column_name = 'cfo_id'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM app_request_header
+            WHERE cfo_id IS NULL
+        ) THEN
+            ALTER TABLE app_request_header
+                ALTER COLUMN cfo_id SET NOT NULL;
+        END IF;
+    END IF;
+END
+$$;
+
+DO $$
+DECLARE
+    fk_exists BOOLEAN;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = current_schema()
+          AND table_name = 'cfo'
+    ) THEN
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_constraint con
+            JOIN pg_class rel ON rel.oid = con.conrelid
+            WHERE rel.relname = 'app_request_header'
+              AND con.contype = 'f'
+              AND array_length(con.conkey, 1) = 1
+              AND con.conkey[1] = (
+                  SELECT attnum
+                  FROM pg_attribute
+                  WHERE attrelid = rel.oid
+                    AND attname = 'cfo_id'
+              )
+        )
+        INTO fk_exists;
+
+        IF NOT fk_exists THEN
+            EXECUTE 'ALTER TABLE app_request_header ADD CONSTRAINT fk_app_request_header_cfo FOREIGN KEY (cfo_id) REFERENCES cfo(id)';
+        END IF;
+    END IF;
+END
+$$;
+
 DO $$
 DECLARE
     default_request_id BIGINT;
