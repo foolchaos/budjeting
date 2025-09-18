@@ -16,6 +16,7 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
@@ -54,17 +55,15 @@ public class RequestExcelExportService {
             int rowIndex = 0;
 
             Row cfoRow = sheet.createRow(rowIndex++);
-            setStringCell(cfoRow, 0, formatCodeAndName(request.getCfo()));
+            Cfo cfo = request.getCfo();
+            String cfoCode = cfo != null ? safeTrim(cfo.getCode()) : "";
+            String cfoName = cfo != null ? safeTrim(cfo.getName()) : "";
+            fillMergedRow(sheet, cfoRow, 0, cfoCode, cfoName);
 
             Row requestInfoRow = sheet.createRow(rowIndex++);
-            String requestName = safeString(request.getName());
-            Integer requestYear = request.getYear();
-            String yearValue = requestYear != null ? requestYear.toString() : "";
-            String requestInfo = requestName;
-            if (hasText(yearValue)) {
-                requestInfo = hasText(requestName) ? requestName + " " + yearValue : yearValue;
-            }
-            setStringCell(requestInfoRow, 0, requestInfo);
+            String requestName = safeTrim(request.getName());
+            String yearValue = safeTrim(request.getYear() != null ? request.getYear().toString() : null);
+            fillMergedRow(sheet, requestInfoRow, 0, requestName, yearValue);
 
             String[] headers = {
                     "№",
@@ -141,6 +140,18 @@ public class RequestExcelExportService {
         }
     }
 
+    private void fillMergedRow(Sheet sheet, Row row, int firstColumn, String firstValue, String secondValue) {
+        Cell firstCell = row.createCell(firstColumn);
+        firstCell.setCellValue(firstValue);
+        row.createCell(firstColumn + 1).setCellValue(secondValue);
+        mergeCells(sheet, row.getRowNum(), firstColumn, firstColumn + 1);
+        firstCell.setCellValue(joinWithSpace(firstValue, secondValue));
+    }
+
+    private void mergeCells(Sheet sheet, int rowIndex, int firstColumn, int lastColumn) {
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, firstColumn, lastColumn));
+    }
+
     private String formatCodeAndName(Bdz bdz) {
         if (bdz == null) {
             return "";
@@ -177,15 +188,19 @@ public class RequestExcelExportService {
     }
 
     private String formatCodeAndName(String code, String name) {
-        boolean hasCode = hasText(code);
-        boolean hasName = hasText(name);
-        if (!hasCode && !hasName) {
+        return joinWithSpace(code, name);
+    }
+
+    private String joinWithSpace(String first, String second) {
+        boolean hasFirst = hasText(first);
+        boolean hasSecond = hasText(second);
+        if (!hasFirst && !hasSecond) {
             return "";
         }
-        if (hasCode && hasName) {
-            return code.trim() + " " + name.trim();
+        if (hasFirst && hasSecond) {
+            return first.trim() + " " + second.trim();
         }
-        return hasCode ? code.trim() : name.trim();
+        return hasFirst ? first.trim() : second.trim();
     }
 
     private String formatCounterparty(Counterparty counterparty) {
@@ -241,6 +256,10 @@ public class RequestExcelExportService {
 
     private String safeString(String value) {
         return value != null ? value : "";
+    }
+
+    private String safeTrim(String value) {
+        return value != null ? value.trim() : "";
     }
 
     private boolean hasText(String value) {
