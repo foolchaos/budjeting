@@ -836,7 +836,13 @@ public class RequestsView extends VerticalLayout {
         cfo.setClearButtonVisible(true);
 
         ComboBox<Mvz> mvz = new ComboBox<>("МВЗ");
-        List<Mvz> mvzItems = new ArrayList<>(mvzRepository.findAll());
+        Request mvzRequestSource = bean.getRequest() != null ? bean.getRequest() : selectedRequest;
+        Long cfoId = mvzRequestSource != null && mvzRequestSource.getCfo() != null
+                ? mvzRequestSource.getCfo().getId()
+                : null;
+        List<Mvz> mvzItems = cfoId != null
+                ? new ArrayList<>(mvzRepository.findByCfoId(cfoId))
+                : new ArrayList<>();
         if (bean.getMvz() != null) {
             Mvz selectedMvz = findById(mvzItems, Mvz::getId, bean.getMvz().getId());
             if (selectedMvz != null) {
