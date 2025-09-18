@@ -2,25 +2,30 @@ package com.example.budget.service;
 
 import com.example.budget.domain.Bdz;
 import com.example.budget.domain.Bo;
+import com.example.budget.domain.Cfo;
 import com.example.budget.domain.CfoTwo;
 import com.example.budget.domain.Contract;
+import com.example.budget.domain.ContractAmount;
 import com.example.budget.domain.Counterparty;
 import com.example.budget.domain.Mvz;
 import com.example.budget.domain.Request;
 import com.example.budget.domain.RequestPosition;
 import com.example.budget.domain.Zgd;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Service
@@ -52,29 +57,38 @@ public class RequestExcelExportService {
             Sheet sheet = workbook.createSheet("Заявка");
             int rowIndex = 0;
 
+            Row cfoRow = sheet.createRow(rowIndex++);
+            Cfo cfo = request.getCfo();
+            String cfoCode = cfo != null ? safeTrim(cfo.getCode()) : "";
+            String cfoName = cfo != null ? safeTrim(cfo.getName()) : "";
+            fillMergedRow(sheet, cfoRow, 0, cfoCode, cfoName);
+
             Row requestInfoRow = sheet.createRow(rowIndex++);
-            setStringCell(requestInfoRow, 0, safeString(request.getName()));
-            setStringCell(requestInfoRow, 1, request.getYear() != null ? request.getYear().toString() : "");
+            String requestName = safeTrim(request.getName());
+            String yearValue = safeTrim(request.getYear() != null ? request.getYear().toString() : null);
+            fillMergedRow(sheet, requestInfoRow, 0, requestName, yearValue);
 
             String[] headers = {
                     "№",
-                    "Статья БДЗ",
                     "ЦФО II",
                     "МВЗ",
-                    "ВГО",
+                    "Статья БДЗ",
                     "Статья БО",
+                    "Ф.И.О. курирующего ЗГД/ГД",
+                    "ВГО",
                     "Контрагент",
                     "№ договора",
                     "Системный № карточки из ИУС ПД",
-                    "Способ закупки",
-                    "Ф.И.О. курирующего ЗГД/ГД",
+                    "Ответственный по договору (Ф.И.О.)",
                     "Предмет договора",
                     "Период",
-                    "Затраты связанные с вводными объектами, в млн.руб. (без НДС)",
-                    "СУММА, в млн.руб."
+                    "Сумма/млн. руб. (без НДС)",
+                    "Затраты связанные с вводными объектами, в млн.руб. (без НДС)"
             };
 
             CellStyle headerStyle = createHeaderStyle(workbook);
+            CellStyle dataStyle = createDataStyle(workbook);
+            CellStyle numericAmountStyle = createNumericAmountStyle(workbook);
             Row headerRow = sheet.createRow(rowIndex++);
             for (int i = 0; i < headers.length; i++) {
                 setStringCell(headerRow, i, headers[i], headerStyle);
@@ -83,21 +97,23 @@ public class RequestExcelExportService {
             int order = 1;
             for (RequestPosition position : positions) {
                 Row row = sheet.createRow(rowIndex++);
-                row.createCell(0).setCellValue(order++);
-                setStringCell(row, 1, formatCodeAndName(position.getBdz()));
-                setStringCell(row, 2, formatCodeAndName(position.getCfo2()));
-                setStringCell(row, 3, formatCodeAndName(position.getMvz()));
-                setStringCell(row, 4, safeString(position.getVgo()));
-                setStringCell(row, 5, formatCodeAndName(position.getBo()));
-                setStringCell(row, 6, formatCounterparty(position.getCounterparty()));
-                setStringCell(row, 7, extractExternalContractNumber(position.getContract()));
-                setStringCell(row, 8, extractInternalContractNumber(position.getContract()));
-                setStringCell(row, 9, safeString(position.getProcurementMethod()));
-                setStringCell(row, 10, formatZgd(position.getZgd()));
-                setStringCell(row, 11, safeString(position.getSubject()));
-                setStringCell(row, 12, safeString(position.getPeriod()));
-                setStringCell(row, 13, formatAmount(position.getAmountNoVat()));
-                setStringCell(row, 14, position.isInputObject() ? formatAmount(position.getAmount()) : "");
+                Cell numberCell = row.createCell(0);
+                numberCell.setCellValue(order++);
+                numberCell.setCellStyle(dataStyle);
+                setStringCell(row, 1, formatCodeAndName(position.getCfo2()), dataStyle);
+                setStringCell(row, 2, formatCodeAndName(position.getMvz()), dataStyle);
+                setStringCell(row, 3, formatCodeAndName(position.getBdz()), dataStyle);
+                setStringCell(row, 4, formatCodeAndName(position.getBo()), dataStyle);
+                setStringCell(row, 5, formatZgd(position.getZgd()), dataStyle);
+                setStringCell(row, 6, safeString(position.getVgo()), dataStyle);
+                setStringCell(row, 7, formatCounterparty(position.getCounterparty()), dataStyle);
+                setStringCell(row, 8, extractExternalContractNumber(position.getContract()), dataStyle);
+                setStringCell(row, 9, extractInternalContractNumber(position.getContract()), dataStyle);
+                setStringCell(row, 10, extractContractResponsible(position.getContract()), dataStyle);
+                setStringCell(row, 11, safeString(position.getSubject()), dataStyle);
+                setStringCell(row, 12, safeString(position.getPeriod()), dataStyle);
+                setAmountCell(row, 13, position.getAmountNoVat(), numericAmountStyle);
+                setAmountCell(row, 14, resolveInputObjectAmount(position), numericAmountStyle);
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -116,7 +132,28 @@ public class RequestExcelExportService {
         font.setBold(true);
         CellStyle style = workbook.createCellStyle();
         style.setFont(font);
+        applyAllBorders(style);
         return style;
+    }
+
+    private CellStyle createDataStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        applyAllBorders(style);
+        return style;
+    }
+
+    private CellStyle createNumericAmountStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        applyAllBorders(style);
+        style.setDataFormat(workbook.createDataFormat().getFormat("# ##0.000"));
+        return style;
+    }
+
+    private void applyAllBorders(CellStyle style) {
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
     }
 
     private void setStringCell(Row row, int columnIndex, String value) {
@@ -129,6 +166,40 @@ public class RequestExcelExportService {
         if (style != null) {
             cell.setCellStyle(style);
         }
+    }
+
+    private void setAmountCell(Row row, int columnIndex, BigDecimal value, CellStyle style) {
+        Cell cell = row.createCell(columnIndex);
+        if (style != null) {
+            cell.setCellStyle(style);
+        }
+        if (value != null) {
+            BigDecimal scaledValue = value.setScale(3, RoundingMode.HALF_UP);
+            cell.setCellValue(scaledValue.doubleValue());
+        }
+    }
+
+    private void fillMergedRow(Sheet sheet, Row row, int firstColumn, String firstValue, String secondValue) {
+        Cell firstCell = row.createCell(firstColumn);
+        firstCell.setCellValue(firstValue);
+        row.createCell(firstColumn + 1).setCellValue(secondValue);
+        mergeCells(sheet, row.getRowNum(), firstColumn, firstColumn + 1);
+        firstCell.setCellValue(joinWithSpace(firstValue, secondValue));
+    }
+
+    private void mergeCells(Sheet sheet, int rowIndex, int firstColumn, int lastColumn) {
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, firstColumn, lastColumn));
+    }
+
+    private BigDecimal resolveInputObjectAmount(RequestPosition position) {
+        if (position == null || !position.isInputObject()) {
+            return null;
+        }
+        ContractAmount contractAmount = position.getContractAmount();
+        if (contractAmount != null && contractAmount.getAmount() != null) {
+            return contractAmount.getAmount();
+        }
+        return position.getAmount();
     }
 
     private String formatCodeAndName(Bdz bdz) {
@@ -152,6 +223,13 @@ public class RequestExcelExportService {
         return formatCodeAndName(cfoTwo.getCode(), cfoTwo.getName());
     }
 
+    private String formatCodeAndName(Cfo cfo) {
+        if (cfo == null) {
+            return "";
+        }
+        return formatCodeAndName(cfo.getCode(), cfo.getName());
+    }
+
     private String formatCodeAndName(Mvz mvz) {
         if (mvz == null) {
             return "";
@@ -160,15 +238,19 @@ public class RequestExcelExportService {
     }
 
     private String formatCodeAndName(String code, String name) {
-        boolean hasCode = hasText(code);
-        boolean hasName = hasText(name);
-        if (!hasCode && !hasName) {
+        return joinWithSpace(code, name);
+    }
+
+    private String joinWithSpace(String first, String second) {
+        boolean hasFirst = hasText(first);
+        boolean hasSecond = hasText(second);
+        if (!hasFirst && !hasSecond) {
             return "";
         }
-        if (hasCode && hasName) {
-            return code.trim() + " " + name.trim();
+        if (hasFirst && hasSecond) {
+            return first.trim() + " " + second.trim();
         }
-        return hasCode ? code.trim() : name.trim();
+        return hasFirst ? first.trim() : second.trim();
     }
 
     private String formatCounterparty(Counterparty counterparty) {
@@ -183,6 +265,10 @@ public class RequestExcelExportService {
         return contract != null ? safeString(contract.getInternalNumber()) : "";
     }
 
+    private String extractContractResponsible(Contract contract) {
+        return contract != null ? safeString(contract.getResponsible()) : "";
+    }
+
     private String formatZgd(Zgd zgd) {
         if (zgd == null) {
             return "";
@@ -193,13 +279,6 @@ public class RequestExcelExportService {
             return fullName + ", " + department;
         }
         return hasText(fullName) ? fullName : department;
-    }
-
-    private String formatAmount(BigDecimal value) {
-        if (value == null) {
-            return "";
-        }
-        return value.stripTrailingZeros().toPlainString();
     }
 
     private String buildFileName(Request request) {
@@ -224,6 +303,10 @@ public class RequestExcelExportService {
 
     private String safeString(String value) {
         return value != null ? value : "";
+    }
+
+    private String safeTrim(String value) {
+        return value != null ? value.trim() : "";
     }
 
     private boolean hasText(String value) {
