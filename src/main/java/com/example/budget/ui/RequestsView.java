@@ -61,6 +61,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -748,51 +749,85 @@ public class RequestsView extends VerticalLayout {
 
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
-        content.setSpacing(true);
+        content.setSpacing(false);
         content.setWidthFull();
         content.getStyle().set("max-height", "70vh");
         content.getStyle().set("overflow", "auto");
+        content.getStyle().set("gap", "var(--lumo-space-l)");
 
-        content.add(
-                infoSection("Основная информация",
-                        entry("Заявка", detailed.getRequest() != null ? detailed.getRequest().getName() : null),
-                        entry("Номер позиции", detailed.getNumber()),
-                        entry("Период (месяц)", detailed.getPeriod()),
-                        entry("ВГО", detailed.getVgo()),
-                        entry("Предмет договора", detailed.getSubject()),
-                        entry("Способ закупки", detailed.getProcurementMethod()),
-                        entry("Сумма (млн)", detailed.getAmount()),
-                        entry("Сумма без НДС (млн)", detailed.getAmountNoVat()),
-                        entry("Вводный объект", detailed.isInputObject())
-                ),
-                infoSection("ЦФО II и МВЗ",
-                        entry("Код ЦФО II", detailed.getCfo2() != null ? detailed.getCfo2().getCode() : null),
-                        entry("Наименование ЦФО II", detailed.getCfo2() != null ? detailed.getCfo2().getName() : null),
-                        entry("Код МВЗ", detailed.getMvz() != null ? detailed.getMvz().getCode() : null),
-                        entry("Наименование МВЗ", detailed.getMvz() != null ? detailed.getMvz().getName() : null)
-                ),
-                infoSection("БДЗ и БО",
-                        entry("Код БДЗ", detailed.getBdz() != null ? detailed.getBdz().getCode() : null),
-                        entry("Наименование БДЗ", detailed.getBdz() != null ? detailed.getBdz().getName() : null),
-                        entry("Код родительского БДЗ", detailed.getBdz() != null && detailed.getBdz().getParent() != null ? detailed.getBdz().getParent().getCode() : null),
-                        entry("Наименование родительского БДЗ", detailed.getBdz() != null && detailed.getBdz().getParent() != null ? detailed.getBdz().getParent().getName() : null),
-                        entry("Код БО", detailed.getBo() != null ? detailed.getBo().getCode() : null),
-                        entry("Наименование БО", detailed.getBo() != null ? detailed.getBo().getName() : null)
-                ),
-                infoSection("ЗГД",
-                        entry("ФИО", detailed.getZgd() != null ? detailed.getZgd().getFullName() : null),
-                        entry("Подразделение", detailed.getZgd() != null ? detailed.getZgd().getDepartment() : null)
-                ),
-                infoSection("Договор",
-                        entry("Контрагент", detailed.getCounterparty() != null ? detailed.getCounterparty().getLegalEntityName() : null),
-                        entry("Наименование", detailed.getContract() != null ? detailed.getContract().getName() : null),
-                        entry("Внутренний номер", detailed.getContract() != null ? detailed.getContract().getInternalNumber() : null),
-                        entry("Внешний номер", detailed.getContract() != null ? detailed.getContract().getExternalNumber() : null),
-                        entry("Дата договора", detailed.getContract() != null ? detailed.getContract().getContractDate() : null),
-                        entry("Ответственный", detailed.getContract() != null ? detailed.getContract().getResponsible() : null),
-                        entry("Сумма по договору", detailed.getContractAmount() != null ? detailed.getContractAmount().getAmount() : null)
-                )
+        String summaryText = Stream.of(
+                        detailed.getRequest() != null ? valueOrDash(detailed.getRequest().getName()) : null,
+                        detailed.getRequest() != null ? formatCodeName(detailed.getRequest().getCfo()) : null,
+                        detailed.getCfo2() != null ? formatCodeName(detailed.getCfo2().getCode(), detailed.getCfo2().getName()) : null,
+                        detailed.getMvz() != null ? formatCodeName(detailed.getMvz().getCode(), detailed.getMvz().getName()) : null)
+                .filter(value -> value != null && !value.isBlank() && !"—".equals(value))
+                .collect(Collectors.joining(" • "));
+
+        if (!summaryText.isBlank()) {
+            Span summary = new Span(summaryText);
+            summary.getStyle().set("font-size", "var(--lumo-font-size-m)");
+            summary.getStyle().set("font-weight", "600");
+            summary.getStyle().set("line-height", "1.4");
+            content.add(summary);
+        }
+
+        FormLayout details = new FormLayout();
+        details.setWidthFull();
+        details.setResponsiveSteps(
+                new FormLayout.ResponsiveStep("0", 1),
+                new FormLayout.ResponsiveStep("700px", 2)
         );
+        details.getStyle().set("gap", "var(--lumo-space-m)");
+
+        FormLayout.FormItem requestItem = addDetail(details, "Заявка",
+                detailed.getRequest() != null ? detailed.getRequest().getName() : null);
+        details.setColspan(requestItem, 2);
+        addDetail(details, "ЦФО I",
+                detailed.getRequest() != null ? formatCodeName(detailed.getRequest().getCfo()) : null);
+        addDetail(details, "Номер позиции", detailed.getNumber());
+        addDetail(details, "Период (месяц)", detailed.getPeriod());
+        addDetail(details, "ВГО", detailed.getVgo());
+        FormLayout.FormItem subjectItem = addDetail(details, "Предмет договора", detailed.getSubject());
+        details.setColspan(subjectItem, 2);
+        FormLayout.FormItem procurementItem = addDetail(details, "Способ закупки", detailed.getProcurementMethod());
+        details.setColspan(procurementItem, 2);
+        addDetail(details, "Сумма (млн)", detailed.getAmount());
+        addDetail(details, "Сумма без НДС (млн)", detailed.getAmountNoVat());
+        addDetail(details, "Вводный объект", detailed.isInputObject());
+        addDetail(details, "ЦФО II",
+                detailed.getCfo2() != null ? formatCodeName(detailed.getCfo2().getCode(), detailed.getCfo2().getName()) : null);
+        addDetail(details, "МВЗ",
+                detailed.getMvz() != null ? formatCodeName(detailed.getMvz().getCode(), detailed.getMvz().getName()) : null);
+        addDetail(details, "БДЗ",
+                detailed.getBdz() != null ? formatCodeName(detailed.getBdz().getCode(), detailed.getBdz().getName()) : null);
+        addDetail(details, "Родительский БДЗ",
+                detailed.getBdz() != null && detailed.getBdz().getParent() != null
+                        ? formatCodeName(detailed.getBdz().getParent().getCode(), detailed.getBdz().getParent().getName())
+                        : null);
+        addDetail(details, "БО",
+                detailed.getBo() != null ? formatCodeName(detailed.getBo().getCode(), detailed.getBo().getName()) : null);
+        FormLayout.FormItem zgdItem = addDetail(details, "ЗГД",
+                detailed.getZgd() != null ? formatZgd(detailed.getZgd()) : null);
+        details.setColspan(zgdItem, 2);
+        FormLayout.FormItem counterpartyItem = addDetail(details, "Контрагент",
+                detailed.getCounterparty() != null ? detailed.getCounterparty().getLegalEntityName() : null);
+        details.setColspan(counterpartyItem, 2);
+        FormLayout.FormItem contractNameItem = addDetail(details, "Договор",
+                detailed.getContract() != null ? detailed.getContract().getName() : null);
+        details.setColspan(contractNameItem, 2);
+        addDetail(details, "№ договора (внутренний)",
+                detailed.getContract() != null ? detailed.getContract().getInternalNumber() : null);
+        addDetail(details, "№ договора (внешний)",
+                detailed.getContract() != null ? detailed.getContract().getExternalNumber() : null);
+        addDetail(details, "Дата договора",
+                detailed.getContract() != null ? detailed.getContract().getContractDate() : null);
+        FormLayout.FormItem responsibleItem = addDetail(details, "Ответственный по договору (Ф.И.О.)",
+                detailed.getContract() != null ? detailed.getContract().getResponsible() : null);
+        details.setColspan(responsibleItem, 2);
+        addDetail(details, "Сумма по договору",
+                detailed.getContractAmount() != null ? detailed.getContractAmount().getAmount() : null);
+
+        content.add(details);
 
         Button edit = new Button("Редактировать", e -> {
             d.close();
@@ -1145,36 +1180,27 @@ public class RequestsView extends VerticalLayout {
         d.open();
     }
 
-    private com.vaadin.flow.component.Component infoSection(String title, InfoEntry... entries) {
-        VerticalLayout section = new VerticalLayout();
-        section.setPadding(true);
-        section.setSpacing(false);
-        section.setWidthFull();
-        section.getStyle().set("border", "1px solid var(--lumo-contrast-20pct)");
-        section.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
-        section.getStyle().set("padding", "var(--lumo-space-m)");
-        section.getStyle().set("gap", "var(--lumo-space-s)");
+    private FormLayout.FormItem addDetail(FormLayout layout, String label, String value) {
+        Span valueSpan = new Span(valueOrDash(value));
+        valueSpan.getStyle().set("font-weight", "500");
+        valueSpan.getStyle().set("white-space", "pre-wrap");
+        valueSpan.getStyle().set("word-break", "break-word");
+        valueSpan.getStyle().set("line-height", "1.4");
+        FormLayout.FormItem item = layout.addFormItem(valueSpan, label);
+        item.getElement().getStyle().set("align-items", "baseline");
+        return item;
+    }
 
-        Span header = new Span(title);
-        header.getStyle().set("font-weight", "600");
-        header.getStyle().set("margin-bottom", "var(--lumo-space-s)");
-        section.add(header);
+    private FormLayout.FormItem addDetail(FormLayout layout, String label, BigDecimal value) {
+        return addDetail(layout, label, value != null ? formatAmount(value) : null);
+    }
 
-        FormLayout layout = new FormLayout();
-        layout.setWidthFull();
-        layout.setResponsiveSteps(
-                new FormLayout.ResponsiveStep("0", 1),
-                new FormLayout.ResponsiveStep("600px", 2)
-        );
+    private FormLayout.FormItem addDetail(FormLayout layout, String label, boolean value) {
+        return addDetail(layout, label, yesNo(value));
+    }
 
-        for (InfoEntry entry : entries) {
-            Span value = new Span(entry.value());
-            value.getStyle().set("font-weight", "500");
-            layout.addFormItem(value, entry.label());
-        }
-
-        section.add(layout);
-        return section;
+    private FormLayout.FormItem addDetail(FormLayout layout, String label, LocalDate value) {
+        return addDetail(layout, label, value != null ? DATE_FORMATTER.format(value) : null);
     }
 
     private <T> T findById(List<T> items, Function<T, Long> idExtractor, Long id) {
@@ -1219,22 +1245,6 @@ public class RequestsView extends VerticalLayout {
             return department;
         }
         return "—";
-    }
-
-    private InfoEntry entry(String label, String value) {
-        return new InfoEntry(label, valueOrDash(value));
-    }
-
-    private InfoEntry entry(String label, BigDecimal value) {
-        return new InfoEntry(label, valueOrDash(value));
-    }
-
-    private InfoEntry entry(String label, boolean value) {
-        return new InfoEntry(label, yesNo(value));
-    }
-
-    private InfoEntry entry(String label, LocalDate value) {
-        return new InfoEntry(label, valueOrDash(value));
     }
 
     private String valueOrDash(String value) {
@@ -1288,5 +1298,4 @@ public class RequestsView extends VerticalLayout {
         }
         return value.substring(0, 1).toUpperCase(locale) + value.substring(1);
     }
-    private record InfoEntry(String label, String value) {}
 }
