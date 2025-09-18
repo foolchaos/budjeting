@@ -109,7 +109,12 @@ public class RequestPositionService {
     }
 
     private void initializeRelations(RequestPosition r) {
-        if (r.getRequest() != null) Hibernate.initialize(r.getRequest());
+        if (r.getRequest() != null) {
+            Hibernate.initialize(r.getRequest());
+            if (r.getRequest().getCfo() != null) {
+                Hibernate.initialize(r.getRequest().getCfo());
+            }
+        }
         if (r.getBdz() != null) {
             Hibernate.initialize(r.getBdz());
             if (r.getBdz().getParent() != null) {
