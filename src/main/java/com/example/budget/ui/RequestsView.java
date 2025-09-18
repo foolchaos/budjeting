@@ -166,7 +166,7 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Заявка")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        requestsGrid.addColumn(r -> valueOrDash(formatCodeName(r.getCfo())))
+        requestsGrid.addColumn(r -> valueOrDash(cfoCode(r.getCfo())))
                 .setHeader("ЦФО I")
                 .setAutoWidth(true)
                 .setFlexGrow(0);
@@ -1205,6 +1205,18 @@ public class RequestsView extends VerticalLayout {
                 .filter(item -> id.equals(idExtractor.apply(item)))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private String cfoCode(Cfo cfo) {
+        if (cfo == null) {
+            return null;
+        }
+        String code = cfo.getCode();
+        if (code == null) {
+            return null;
+        }
+        String trimmed = code.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private String formatCodeName(Cfo cfo) {
