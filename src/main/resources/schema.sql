@@ -61,16 +61,22 @@ ALTER TABLE app_request_header
     ADD COLUMN IF NOT EXISTS cfo_id BIGINT;
 
 DO $$
+DECLARE
+    constraint_name text;
 BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.table_constraints
-        WHERE constraint_schema = current_schema()
-          AND table_name = 'app_request_header'
-          AND constraint_name = 'uk_app_request_header_cfo'
-    ) THEN
-        EXECUTE 'ALTER TABLE app_request_header DROP CONSTRAINT uk_app_request_header_cfo';
-    END IF;
+    FOR constraint_name IN
+        SELECT tc.constraint_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+           AND tc.constraint_schema = ccu.constraint_schema
+        WHERE tc.constraint_type = 'UNIQUE'
+          AND tc.table_schema = current_schema()
+          AND tc.table_name = 'app_request_header'
+          AND ccu.column_name = 'cfo_id'
+    LOOP
+        EXECUTE format('ALTER TABLE app_request_header DROP CONSTRAINT %I', constraint_name);
+    END LOOP;
 
     IF NOT EXISTS (
         SELECT 1
@@ -80,6 +86,16 @@ BEGIN
           AND constraint_name = 'fk_app_request_header_cfo'
     ) THEN
         EXECUTE 'ALTER TABLE app_request_header ADD CONSTRAINT fk_app_request_header_cfo FOREIGN KEY (cfo_id) REFERENCES cfo (id)';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE constraint_schema = current_schema()
+          AND table_name = 'app_request_header'
+          AND constraint_name = 'uk_app_request_header_cfo'
+    ) THEN
+        EXECUTE 'ALTER TABLE app_request_header ADD CONSTRAINT uk_app_request_header_cfo UNIQUE (cfo_id)';
     END IF;
 END
 $$;

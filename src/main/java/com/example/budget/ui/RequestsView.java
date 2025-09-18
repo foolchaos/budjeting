@@ -25,6 +25,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
@@ -50,6 +51,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -61,6 +63,7 @@ import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @Component
 @UIScope
@@ -491,16 +494,7 @@ public class RequestsView extends VerticalLayout {
 
         ComboBox<Cfo> cfo = new ComboBox<>("ЦФО I");
         cfo.setWidthFull();
-        List<Cfo> cfoItems = new ArrayList<>(cfoRepository.findAll());
-        if (target.getCfo() != null) {
-            Cfo selectedCfo = findById(cfoItems, Cfo::getId, target.getCfo().getId());
-            if (selectedCfo != null) {
-                target.setCfo(selectedCfo);
-            } else {
-                cfoItems.add(target.getCfo());
-            }
-        }
-        cfo.setItems(cfoItems);
+        populateCfoItems(cfo, target);
         cfo.setItemLabelGenerator(c -> formatCodeName(c.getCode(), c.getName()));
         cfo.setRequiredIndicatorVisible(true);
 
@@ -530,10 +524,23 @@ public class RequestsView extends VerticalLayout {
 
         Button save = new Button("Сохранить", e -> {
             if (binder.validate().isOk()) {
-                Request saved = requestService.save(target);
-                selectedRequest = saved;
-                dialog.close();
-                reloadRequests();
+                try {
+                    Request saved = requestService.save(target);
+                    selectedRequest = saved;
+                    dialog.close();
+                    reloadRequests();
+                } catch (DataIntegrityViolationException ex) {
+                    LOGGER.warn("Unable to save request due to unique CFO constraint", ex);
+                    Notification notification = Notification.show(
+                            "Выбранный ЦФО I уже используется в другой заявке",
+                            5000,
+                            Notification.Position.MIDDLE
+                    );
+                    notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    target.setCfo(null);
+                    cfo.clear();
+                    populateCfoItems(cfo, target);
+                }
             }
         });
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -550,6 +557,25 @@ public class RequestsView extends VerticalLayout {
 
         dialog.add(content, actions);
         dialog.open();
+    }
+
+    private void populateCfoItems(ComboBox<Cfo> comboBox, Request request) {
+        List<Cfo> cfoItems = new ArrayList<>(cfoRepository.findByRequestIsNull());
+        if (request.getCfo() != null && request.getCfo().getId() != null) {
+            Long currentCfoId = request.getCfo().getId();
+            Cfo selectedCfo = cfoRepository.findById(currentCfoId).orElse(request.getCfo());
+            boolean alreadyPresent = cfoItems.stream()
+                    .anyMatch(cfo -> Objects.equals(cfo.getId(), currentCfoId));
+            if (!alreadyPresent) {
+                cfoItems.add(selectedCfo);
+            }
+            request.setCfo(selectedCfo);
+        }
+        cfoItems.sort(Comparator.comparing(
+                Cfo::getCode,
+                Comparator.nullsLast(Comparator.naturalOrder())
+        ));
+        comboBox.setItems(cfoItems);
     }
 
     private void configurePositionsGrid() {

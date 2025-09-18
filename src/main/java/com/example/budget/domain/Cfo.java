@@ -23,8 +23,8 @@ public class Cfo {
     @OneToMany(mappedBy = "cfo")
     private List<Bdz> bdzList = new ArrayList<>();
 
-    @OneToMany(mappedBy = "cfo")
-    private List<Request> requests = new ArrayList<>();
+    @OneToOne(mappedBy = "cfo")
+    private Request request;
 
     public Long getId() { return id; }
     public String getCode() { return code; }
@@ -33,5 +33,5 @@ public class Cfo {
     public void setName(String name) { this.name = name; }
     public List<Mvz> getMvzList() { return mvzList; }
     public List<Bdz> getBdzList() { return bdzList; }
-    public List<Request> getRequests() { return requests; }
+    public Request getRequest() { return request; }
 }
