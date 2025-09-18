@@ -22,6 +22,10 @@ public class Request {
     @Column(name = "request_year", nullable = false)
     private Integer year;
 
+    @OneToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "cfo_id", unique = true)
+    private Cfo cfo;
+
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RequestPosition> positions = new ArrayList<>();
 
@@ -43,6 +47,14 @@ public class Request {
 
     public void setYear(Integer year) {
         this.year = year;
+    }
+
+    public Cfo getCfo() {
+        return cfo;
+    }
+
+    public void setCfo(Cfo cfo) {
+        this.cfo = cfo;
     }
 
     public List<RequestPosition> getPositions() {

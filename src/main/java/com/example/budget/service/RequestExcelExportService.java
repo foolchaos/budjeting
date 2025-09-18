@@ -2,6 +2,7 @@ package com.example.budget.service;
 
 import com.example.budget.domain.Bdz;
 import com.example.budget.domain.Bo;
+import com.example.budget.domain.Cfo;
 import com.example.budget.domain.CfoTwo;
 import com.example.budget.domain.Contract;
 import com.example.budget.domain.Counterparty;
@@ -55,6 +56,7 @@ public class RequestExcelExportService {
             Row requestInfoRow = sheet.createRow(rowIndex++);
             setStringCell(requestInfoRow, 0, safeString(request.getName()));
             setStringCell(requestInfoRow, 1, request.getYear() != null ? request.getYear().toString() : "");
+            setStringCell(requestInfoRow, 2, safeString(formatCodeAndName(request.getCfo())));
 
             String[] headers = {
                     "№",
@@ -150,6 +152,13 @@ public class RequestExcelExportService {
             return "";
         }
         return formatCodeAndName(cfoTwo.getCode(), cfoTwo.getName());
+    }
+
+    private String formatCodeAndName(Cfo cfo) {
+        if (cfo == null) {
+            return "";
+        }
+        return formatCodeAndName(cfo.getCode(), cfo.getName());
     }
 
     private String formatCodeAndName(Mvz mvz) {

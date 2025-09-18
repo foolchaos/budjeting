@@ -56,3 +56,30 @@ BEGIN
     END IF;
 END
 $$;
+
+ALTER TABLE app_request_header
+    ADD COLUMN IF NOT EXISTS cfo_id BIGINT;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE constraint_schema = current_schema()
+          AND table_name = 'app_request_header'
+          AND constraint_name = 'uk_app_request_header_cfo'
+    ) THEN
+        EXECUTE 'ALTER TABLE app_request_header ADD CONSTRAINT uk_app_request_header_cfo UNIQUE (cfo_id)';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE constraint_schema = current_schema()
+          AND table_name = 'app_request_header'
+          AND constraint_name = 'fk_app_request_header_cfo'
+    ) THEN
+        EXECUTE 'ALTER TABLE app_request_header ADD CONSTRAINT fk_app_request_header_cfo FOREIGN KEY (cfo_id) REFERENCES cfo (id)';
+    END IF;
+END
+$$;
