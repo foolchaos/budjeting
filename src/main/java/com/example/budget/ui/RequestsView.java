@@ -584,6 +584,10 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("БО")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
+        grid.addColumn(r -> formatZgd(r.getZgd()))
+                .setHeader("ЗГД")
+                .setAutoWidth(true)
+                .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getVgo()))
                 .setHeader("ВГО")
                 .setAutoWidth(true)
@@ -1238,6 +1242,24 @@ public class RequestsView extends VerticalLayout {
             return codePart;
         }
         return namePart;
+    }
+
+    private String formatZgd(Zgd zgd) {
+        if (zgd == null) {
+            return "—";
+        }
+        String fullName = zgd.getFullName() != null ? zgd.getFullName().trim() : "";
+        String department = zgd.getDepartment() != null ? zgd.getDepartment().trim() : "";
+        if (!fullName.isEmpty() && !department.isEmpty()) {
+            return fullName + " — " + department;
+        }
+        if (!fullName.isEmpty()) {
+            return fullName;
+        }
+        if (!department.isEmpty()) {
+            return department;
+        }
+        return "—";
     }
 
     private InfoEntry entry(String label, String value) {
