@@ -121,7 +121,6 @@ public class RequestsView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
-        exportRequestButton.addClassName("requests-export-button");
         exportRequestButton.addClickListener(e -> exportSelectedRequest());
         exportRequestButton.setEnabled(false);
 
@@ -203,8 +202,19 @@ public class RequestsView extends VerticalLayout {
             reloadRequests();
         });
 
-        HorizontalLayout actions = new HorizontalLayout(create, deleteRequestButton, exportRequestButton);
+        HorizontalLayout leftActions = new HorizontalLayout(create, deleteRequestButton);
+        leftActions.setSpacing(true);
+        leftActions.setPadding(false);
+        leftActions.setMargin(false);
+        leftActions.setAlignItems(Alignment.CENTER);
+
+        HorizontalLayout actions = new HorizontalLayout(leftActions, exportRequestButton);
         actions.setWidthFull();
+        actions.setSpacing(true);
+        actions.setPadding(false);
+        actions.setMargin(false);
+        actions.setAlignItems(Alignment.CENTER);
+        actions.setJustifyContentMode(JustifyContentMode.BETWEEN);
 
         layout.add(actions, requestsGrid);
         layout.setFlexGrow(1, requestsGrid);
