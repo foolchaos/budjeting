@@ -69,6 +69,27 @@ public class BdzService {
     }
 
     @Transactional(readOnly = true)
+    public List<Bdz> findByCfoId(Long cfoId) {
+        if (cfoId == null) {
+            return List.of();
+        }
+        List<Bdz> list = bdzRepository.findByCfoId(cfoId);
+        list.forEach(b -> {
+            Hibernate.initialize(b);
+            if (b.getParent() != null) {
+                Hibernate.initialize(b.getParent());
+            }
+            if (b.getCfo() != null) {
+                Hibernate.initialize(b.getCfo());
+            }
+            if (b.getZgd() != null) {
+                Hibernate.initialize(b.getZgd());
+            }
+        });
+        return list;
+    }
+
+    @Transactional(readOnly = true)
     public java.util.List<Bdz> findRoots() {
         List<Bdz> list = bdzRepository.findByParentIsNull();
         list.forEach(b -> {
