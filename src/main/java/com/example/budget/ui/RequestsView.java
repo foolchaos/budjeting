@@ -852,7 +852,7 @@ public class RequestsView extends VerticalLayout {
         binder.forField(mvz).bind(RequestPosition::getMvz, RequestPosition::setMvz);
 
         ComboBox<Bdz> bdz = new ComboBox<>("БДЗ");
-        List<Bdz> bdzItems = new ArrayList<>(bdzService.findAll());
+        List<Bdz> bdzItems = loadBdzItemsForRequest(bean.getRequest());
         if (bean.getBdz() != null) {
             Bdz selectedBdz = findById(bdzItems, Bdz::getId, bean.getBdz().getId());
             if (selectedBdz != null) {
@@ -1205,6 +1205,13 @@ public class RequestsView extends VerticalLayout {
                 .filter(item -> id.equals(idExtractor.apply(item)))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private List<Bdz> loadBdzItemsForRequest(Request request) {
+        if (request != null && request.getCfo() != null && request.getCfo().getId() != null) {
+            return new ArrayList<>(bdzService.findByCfoId(request.getCfo().getId()));
+        }
+        return new ArrayList<>(bdzService.findAll());
     }
 
     private List<Mvz> loadMvzItemsForRequest(Request request) {
