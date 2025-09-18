@@ -2,6 +2,7 @@ package com.example.budget.service;
 
 import com.example.budget.domain.Bdz;
 import com.example.budget.domain.Bo;
+import com.example.budget.domain.Cfo;
 import com.example.budget.domain.CfoTwo;
 import com.example.budget.domain.Contract;
 import com.example.budget.domain.Counterparty;
@@ -52,9 +53,18 @@ public class RequestExcelExportService {
             Sheet sheet = workbook.createSheet("Заявка");
             int rowIndex = 0;
 
+            Row cfoRow = sheet.createRow(rowIndex++);
+            setStringCell(cfoRow, 0, formatCodeAndName(request.getCfo()));
+
             Row requestInfoRow = sheet.createRow(rowIndex++);
-            setStringCell(requestInfoRow, 0, safeString(request.getName()));
-            setStringCell(requestInfoRow, 1, request.getYear() != null ? request.getYear().toString() : "");
+            String requestName = safeString(request.getName());
+            Integer requestYear = request.getYear();
+            String yearValue = requestYear != null ? requestYear.toString() : "";
+            String requestInfo = requestName;
+            if (hasText(yearValue)) {
+                requestInfo = hasText(requestName) ? requestName + " " + yearValue : yearValue;
+            }
+            setStringCell(requestInfoRow, 0, requestInfo);
 
             String[] headers = {
                     "№",
@@ -150,6 +160,13 @@ public class RequestExcelExportService {
             return "";
         }
         return formatCodeAndName(cfoTwo.getCode(), cfoTwo.getName());
+    }
+
+    private String formatCodeAndName(Cfo cfo) {
+        if (cfo == null) {
+            return "";
+        }
+        return formatCodeAndName(cfo.getCode(), cfo.getName());
     }
 
     private String formatCodeAndName(Mvz mvz) {
