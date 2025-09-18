@@ -24,23 +24,34 @@ DO $$
 DECLARE
     constraint_name TEXT;
 BEGIN
-    SELECT con.conname
-    INTO constraint_name
-    FROM pg_constraint con
-    JOIN pg_class rel ON rel.oid = con.conrelid
-    WHERE rel.relname = 'app_request_header'
-      AND con.contype = 'u'
-      AND con.conkey = ARRAY (
-          SELECT attnum
-          FROM pg_attribute
-          WHERE attrelid = rel.oid
-            AND attname = 'cfo_id'
-      )
-    LIMIT 1;
-
-    IF constraint_name IS NOT NULL THEN
+    FOR constraint_name IN
+        SELECT con.conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_attribute att ON att.attrelid = rel.oid AND att.attnum = ANY (con.conkey)
+        WHERE rel.relname = 'app_request_header'
+          AND con.contype = 'u'
+          AND att.attname = 'cfo_id'
+    LOOP
         EXECUTE format('ALTER TABLE app_request_header DROP CONSTRAINT %I', constraint_name);
-    END IF;
+    END LOOP;
+END
+$$;
+
+DO $$
+DECLARE
+    index_name TEXT;
+BEGIN
+    FOR index_name IN
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = current_schema()
+          AND tablename = 'app_request_header'
+          AND indexdef ILIKE 'CREATE UNIQUE%'
+          AND POSITION('(cfo_id' IN indexdef) > 0
+    LOOP
+        EXECUTE format('DROP INDEX IF EXISTS %I', index_name);
+    END LOOP;
 END
 $$;
 

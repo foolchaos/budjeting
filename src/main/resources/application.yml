@@ -12,6 +12,10 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
   jackson:
     time-zone: UTC
 
