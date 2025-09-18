@@ -23,6 +23,7 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -1160,20 +1161,35 @@ public class RequestsView extends VerticalLayout {
         header.getStyle().set("margin-bottom", "var(--lumo-space-s)");
         section.add(header);
 
-        FormLayout layout = new FormLayout();
-        layout.setWidthFull();
-        layout.setResponsiveSteps(
-                new FormLayout.ResponsiveStep("0", 1),
-                new FormLayout.ResponsiveStep("600px", 2)
-        );
+        VerticalLayout entriesLayout = new VerticalLayout();
+        entriesLayout.setPadding(false);
+        entriesLayout.setSpacing(false);
+        entriesLayout.setWidthFull();
+        entriesLayout.getStyle().set("gap", "var(--lumo-space-xs)");
 
         for (InfoEntry entry : entries) {
+            Div row = new Div();
+            row.setWidthFull();
+            row.getStyle().set("display", "flex");
+            row.getStyle().set("gap", "var(--lumo-space-s)");
+            row.getStyle().set("align-items", "baseline");
+            row.getStyle().set("flex-wrap", "wrap");
+
+            Span label = new Span(entry.label() + ":");
+            label.getStyle().set("color", "var(--lumo-secondary-text-color)");
+            label.getStyle().set("font-weight", "500");
+
             Span value = new Span(entry.value());
-            value.getStyle().set("font-weight", "500");
-            layout.addFormItem(value, entry.label());
+            value.getStyle().set("font-weight", "600");
+            value.getStyle().set("flex", "1");
+            value.getStyle().set("min-width", "0");
+            value.getStyle().set("word-break", "break-word");
+
+            row.add(label, value);
+            entriesLayout.add(row);
         }
 
-        section.add(layout);
+        section.add(entriesLayout);
         return section;
     }
 
