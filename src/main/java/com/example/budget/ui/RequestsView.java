@@ -44,6 +44,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.format.DateTimeFormatter;
@@ -1290,7 +1293,16 @@ public class RequestsView extends VerticalLayout {
     }
 
     private String valueOrDash(BigDecimal value) {
-        return value != null ? value.toPlainString() : "—";
+        return value != null ? formatAmount(value) : "—";
+    }
+
+    private String formatAmount(BigDecimal value) {
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("ru", "RU"));
+        symbols.setGroupingSeparator(' ');
+        symbols.setDecimalSeparator(',');
+        DecimalFormat formatter = new DecimalFormat("#,##0.000", symbols);
+        formatter.setRoundingMode(RoundingMode.HALF_UP);
+        return formatter.format(value);
     }
 
     private String valueOrDash(LocalDate value) {
