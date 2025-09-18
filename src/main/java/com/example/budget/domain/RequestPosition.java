@@ -1,8 +1,6 @@
 package com.example.budget.domain;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotNull;
-
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -44,9 +42,7 @@ public class RequestPosition {
     private Bo bo;
 
     private String vgo; // ВГО
-    @NotNull
     private BigDecimal amount; // Сумма (млн руб.)
-    @NotNull
     private BigDecimal amountNoVat; // Сумма без НДС (млн руб.)
     private String subject; // Предмет договора
     private String period; // Период (месяц)

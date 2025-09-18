@@ -6,6 +6,32 @@ CREATE TABLE IF NOT EXISTS app_request_header (
 
 @@
 
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'app_request'
+          AND column_name = 'amount'
+    ) THEN
+        EXECUTE 'ALTER TABLE app_request ALTER COLUMN amount DROP NOT NULL';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'app_request'
+          AND column_name = 'amount_no_vat'
+    ) THEN
+        EXECUTE 'ALTER TABLE app_request ALTER COLUMN amount_no_vat DROP NOT NULL';
+    END IF;
+END
+$$;
+
+@@
+
 ALTER TABLE app_request_header
     ADD COLUMN IF NOT EXISTS request_year INTEGER;
 
