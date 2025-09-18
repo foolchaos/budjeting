@@ -896,12 +896,6 @@ public class RequestsView extends VerticalLayout {
         vgo.setWidthFull();
         binder.bind(vgo, RequestPosition::getVgo, RequestPosition::setVgo);
 
-        NumberField amount = new NumberField("Сумма (млн)");
-        amount.setWidthFull();
-        binder.forField(amount).bind(
-                r -> r.getAmount() != null ? r.getAmount().doubleValue() : null,
-                (r, v) -> r.setAmount(v != null ? BigDecimal.valueOf(v) : null));
-
         NumberField amountNoVat = new NumberField("Сумма без НДС (млн)");
         amountNoVat.setWidthFull();
         binder.forField(amountNoVat).bind(
@@ -1037,7 +1031,7 @@ public class RequestsView extends VerticalLayout {
         VerticalLayout step1 = stepLayout(requestName, cfo, mvz);
         VerticalLayout step2 = stepLayout(bdz, bo, zgd);
         VerticalLayout step3 = stepLayout(counterparty, contract);
-        VerticalLayout step4 = stepLayout(vgo, amount, amountNoVat, subject, period, pm, input);
+        VerticalLayout step4 = stepLayout(vgo, amountNoVat, subject, period, pm, input);
         step2.setVisible(false);
         step3.setVisible(false);
         step4.setVisible(false);
