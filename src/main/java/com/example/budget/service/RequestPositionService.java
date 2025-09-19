@@ -22,12 +22,14 @@ public class RequestPositionService {
     private final ContractAmountRepository contractAmountRepository;
     private final CounterpartyRepository counterpartyRepository;
     private final ZgdRepository zgdRepository;
+    private final ProcurementMethodRepository procurementMethodRepository;
 
     public RequestPositionService(RequestPositionRepository requestPositionRepository, RequestRepository requestRepository,
                                   BoRepository boRepository, BdzRepository bdzRepository,
                                   CfoTwoRepository cfoTwoRepository, MvzRepository mvzRepository,
                                   ContractRepository contractRepository, ContractAmountRepository contractAmountRepository,
-                                  CounterpartyRepository counterpartyRepository, ZgdRepository zgdRepository) {
+                                  CounterpartyRepository counterpartyRepository, ZgdRepository zgdRepository,
+                                  ProcurementMethodRepository procurementMethodRepository) {
         this.requestPositionRepository = requestPositionRepository;
         this.requestRepository = requestRepository;
         this.boRepository = boRepository;
@@ -38,6 +40,7 @@ public class RequestPositionService {
         this.contractAmountRepository = contractAmountRepository;
         this.counterpartyRepository = counterpartyRepository;
         this.zgdRepository = zgdRepository;
+        this.procurementMethodRepository = procurementMethodRepository;
     }
 
     @Transactional(readOnly = true)
@@ -107,6 +110,14 @@ public class RequestPositionService {
             Counterparty managedCounterparty = counterpartyRepository.findById(counterpartyId)
                     .orElseThrow(() -> new IllegalArgumentException("Counterparty not found: " + counterpartyId));
             r.setCounterparty(managedCounterparty);
+        }
+        if (r.getProcurementMethod() != null && r.getProcurementMethod().getId() != null) {
+            Long methodId = r.getProcurementMethod().getId();
+            ProcurementMethod managedMethod = procurementMethodRepository.findById(methodId)
+                    .orElseThrow(() -> new IllegalArgumentException("Procurement method not found: " + methodId));
+            r.setProcurementMethod(managedMethod);
+        } else {
+            r.setProcurementMethod(null);
         }
         if (r.getZgd() != null && r.getZgd().getId() != null) {
             r.setZgd(zgdRepository.getReferenceById(r.getZgd().getId()));
@@ -192,6 +203,9 @@ public class RequestPositionService {
         }
         if (r.getCounterparty() != null) {
             Hibernate.initialize(r.getCounterparty());
+        }
+        if (r.getProcurementMethod() != null) {
+            Hibernate.initialize(r.getProcurementMethod());
         }
         if (r.getZgd() != null) {
             Hibernate.initialize(r.getZgd());

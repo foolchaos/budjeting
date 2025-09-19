@@ -21,6 +21,8 @@ public interface RequestPositionRepository extends JpaRepository<RequestPosition
 
     List<RequestPosition> findByMvzId(Long mvzId);
 
+    List<RequestPosition> findByProcurementMethodId(Long procurementMethodId);
+
     @Query("select coalesce(sum(r.amountNoVat), 0) from RequestPosition r " +
             "where r.request.id = :requestId and r.contract.id = :contractId")
     BigDecimal sumAmountNoVatByRequestIdAndContractId(@Param("requestId") Long requestId,

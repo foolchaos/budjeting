@@ -223,3 +223,101 @@ END
 $$;
 
 @@
+
+CREATE TABLE IF NOT EXISTS procurement_method (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE
+);
+
+@@
+
+ALTER TABLE app_request
+    ADD COLUMN IF NOT EXISTS procurement_method_id BIGINT;
+
+@@
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'app_request'
+          AND column_name = 'procurement_method'
+    ) THEN
+        WITH distinct_methods AS (
+            SELECT DISTINCT
+                   lower(trim(procurement_method)) AS normalized_name,
+                   trim(procurement_method) AS original_name
+            FROM app_request
+            WHERE procurement_method IS NOT NULL
+              AND trim(procurement_method) <> ''
+        )
+        INSERT INTO procurement_method (name)
+        SELECT dm.original_name
+        FROM distinct_methods dm
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM procurement_method pm
+            WHERE lower(pm.name) = dm.normalized_name
+        );
+
+        UPDATE app_request ar
+        SET procurement_method_id = pm.id
+        FROM procurement_method pm
+        WHERE ar.procurement_method_id IS NULL
+          AND ar.procurement_method IS NOT NULL
+          AND trim(ar.procurement_method) <> ''
+          AND lower(pm.name) = lower(trim(ar.procurement_method));
+    END IF;
+END
+$$;
+
+@@
+
+DO $$
+DECLARE
+    fk_exists BOOLEAN;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'app_request'
+          AND column_name = 'procurement_method_id'
+    ) THEN
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = current_schema()
+              AND table_name = 'procurement_method'
+        ) THEN
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_constraint con
+                JOIN pg_class rel ON rel.oid = con.conrelid
+                WHERE rel.relname = 'app_request'
+                  AND con.contype = 'f'
+                  AND array_length(con.conkey, 1) = 1
+                  AND con.conkey[1] = (
+                      SELECT attnum
+                      FROM pg_attribute
+                      WHERE attrelid = rel.oid
+                        AND attname = 'procurement_method_id'
+                  )
+            ) INTO fk_exists;
+
+            IF NOT fk_exists THEN
+                EXECUTE 'ALTER TABLE app_request ADD CONSTRAINT fk_app_request_procurement_method FOREIGN KEY (procurement_method_id) REFERENCES procurement_method (id)';
+            END IF;
+        END IF;
+    END IF;
+END
+$$;
+
+@@
+
+ALTER TABLE app_request
+    DROP COLUMN IF EXISTS procurement_method;
+
+@@
