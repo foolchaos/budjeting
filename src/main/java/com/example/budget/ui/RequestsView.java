@@ -768,7 +768,6 @@ public class RequestsView extends VerticalLayout {
                         entry("Способ закупки", detailed.getProcurementMethod() != null
                                 ? detailed.getProcurementMethod().getName()
                                 : null),
-                        entry("Сумма по БДЗ (млн. руб.)", detailed.getAmount()),
                         entry("Сумма по БДЗ (без НДС/млн. руб.)", detailed.getAmountNoVat()),
                         entry("Вводный объект", detailed.isInputObject())
                 ),
