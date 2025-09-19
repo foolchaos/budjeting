@@ -57,16 +57,18 @@ public class RequestExcelExportService {
             Sheet sheet = workbook.createSheet("Заявка");
             int rowIndex = 0;
 
+            CellStyle titleStyle = createTitleStyle(workbook);
+
             Row cfoRow = sheet.createRow(rowIndex++);
             Cfo cfo = request.getCfo();
             String cfoCode = cfo != null ? safeTrim(cfo.getCode()) : "";
             String cfoName = cfo != null ? safeTrim(cfo.getName()) : "";
-            fillMergedRow(sheet, cfoRow, 0, cfoCode, cfoName);
+            fillTitleRow(sheet, cfoRow, "ЦФО I", cfoCode, cfoName, titleStyle);
 
             Row requestInfoRow = sheet.createRow(rowIndex++);
             String requestName = safeTrim(request.getName());
             String yearValue = safeTrim(request.getYear() != null ? request.getYear().toString() : null);
-            fillMergedRow(sheet, requestInfoRow, 0, requestName, yearValue);
+            fillTitleRow(sheet, requestInfoRow, "Заявка", yearValue, requestName, titleStyle);
 
             String[] headers = {
                     "№",
@@ -82,8 +84,9 @@ public class RequestExcelExportService {
                     "Ответственный по договору (Ф.И.О.)",
                     "Предмет договора",
                     "Период",
-                    "Сумма/млн. руб. (без НДС)",
-                    "Затраты связанные с вводными объектами, в млн.руб. (без НДС)"
+                    "Сумма по БДЗ (без НДС/млн. руб.)",
+                    "Затраты связанные с вводными объектами, в млн.руб. (без НДС)",
+                    "Сумма по договору (без НДС/млн. руб.)"
             };
 
             CellStyle headerStyle = createHeaderStyle(workbook);
@@ -114,6 +117,7 @@ public class RequestExcelExportService {
                 setStringCell(row, 12, safeString(position.getPeriod()), dataStyle);
                 setAmountCell(row, 13, position.getAmountNoVat(), numericAmountStyle);
                 setAmountCell(row, 14, resolveInputObjectAmount(position), numericAmountStyle);
+                setAmountCell(row, 15, resolveContractAmount(position), numericAmountStyle);
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -133,6 +137,15 @@ public class RequestExcelExportService {
         CellStyle style = workbook.createCellStyle();
         style.setFont(font);
         applyAllBorders(style);
+        return style;
+    }
+
+    private CellStyle createTitleStyle(Workbook workbook) {
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 14);
+        CellStyle style = workbook.createCellStyle();
+        style.setFont(font);
         return style;
     }
 
@@ -179,12 +192,19 @@ public class RequestExcelExportService {
         }
     }
 
-    private void fillMergedRow(Sheet sheet, Row row, int firstColumn, String firstValue, String secondValue) {
-        Cell firstCell = row.createCell(firstColumn);
-        firstCell.setCellValue(firstValue);
-        row.createCell(firstColumn + 1).setCellValue(secondValue);
-        mergeCells(sheet, row.getRowNum(), firstColumn, firstColumn + 1);
-        firstCell.setCellValue(joinWithSpace(firstValue, secondValue));
+    private void fillTitleRow(Sheet sheet, Row row, String label, String middleValue, String mergedValue, CellStyle style) {
+        if (style != null) {
+            row.setHeightInPoints(20f);
+        }
+        setStringCell(row, 0, label, style);
+        setStringCell(row, 1, "", style);
+        mergeCells(sheet, row.getRowNum(), 0, 1);
+
+        setStringCell(row, 2, middleValue, style);
+
+        setStringCell(row, 3, mergedValue, style);
+        setStringCell(row, 4, "", style);
+        mergeCells(sheet, row.getRowNum(), 3, 4);
     }
 
     private void mergeCells(Sheet sheet, int rowIndex, int firstColumn, int lastColumn) {
@@ -192,14 +212,21 @@ public class RequestExcelExportService {
     }
 
     private BigDecimal resolveInputObjectAmount(RequestPosition position) {
-        if (position == null || !position.isInputObject()) {
+        if (position == null) {
+            return null;
+        }
+        if (!position.isInputObject()) {
+            return BigDecimal.ZERO;
+        }
+        return position.getAmountNoVat();
+    }
+
+    private BigDecimal resolveContractAmount(RequestPosition position) {
+        if (position == null) {
             return null;
         }
         ContractAmount contractAmount = position.getContractAmount();
-        if (contractAmount != null && contractAmount.getAmount() != null) {
-            return contractAmount.getAmount();
-        }
-        return position.getAmount();
+        return contractAmount != null ? contractAmount.getAmount() : null;
     }
 
     private String formatCodeAndName(Bdz bdz) {
