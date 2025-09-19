@@ -84,8 +84,9 @@ public class RequestExcelExportService {
                     "Ответственный по договору (Ф.И.О.)",
                     "Предмет договора",
                     "Период",
-                    "Сумма/млн. руб. (без НДС)",
-                    "Затраты связанные с вводными объектами, в млн.руб. (без НДС)"
+                    "Сумма по БДЗ (без НДС/млн. руб.)",
+                    "Затраты связанные с вводными объектами, в млн.руб. (без НДС)",
+                    "Сумма по договору (без НДС/млн. руб.)"
             };
 
             CellStyle headerStyle = createHeaderStyle(workbook);
@@ -116,6 +117,7 @@ public class RequestExcelExportService {
                 setStringCell(row, 12, safeString(position.getPeriod()), dataStyle);
                 setAmountCell(row, 13, position.getAmountNoVat(), numericAmountStyle);
                 setAmountCell(row, 14, resolveInputObjectAmount(position), numericAmountStyle);
+                setAmountCell(row, 15, resolveContractAmount(position), numericAmountStyle);
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -210,14 +212,21 @@ public class RequestExcelExportService {
     }
 
     private BigDecimal resolveInputObjectAmount(RequestPosition position) {
-        if (position == null || !position.isInputObject()) {
+        if (position == null) {
+            return null;
+        }
+        if (!position.isInputObject()) {
+            return BigDecimal.ZERO;
+        }
+        return position.getAmountNoVat();
+    }
+
+    private BigDecimal resolveContractAmount(RequestPosition position) {
+        if (position == null) {
             return null;
         }
         ContractAmount contractAmount = position.getContractAmount();
-        if (contractAmount != null && contractAmount.getAmount() != null) {
-            return contractAmount.getAmount();
-        }
-        return position.getAmount();
+        return contractAmount != null ? contractAmount.getAmount() : null;
     }
 
     private String formatCodeAndName(Bdz bdz) {
