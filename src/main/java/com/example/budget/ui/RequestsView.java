@@ -768,8 +768,8 @@ public class RequestsView extends VerticalLayout {
                         entry("Способ закупки", detailed.getProcurementMethod() != null
                                 ? detailed.getProcurementMethod().getName()
                                 : null),
-                        entry("Сумма (млн)", detailed.getAmount()),
-                        entry("Сумма без НДС (млн)", detailed.getAmountNoVat()),
+                        entry("Сумма по БДЗ (млн. руб.)", detailed.getAmount()),
+                        entry("Сумма по БДЗ (без НДС/млн. руб.)", detailed.getAmountNoVat()),
                         entry("Вводный объект", detailed.isInputObject())
                 ),
                 infoSection("ЦФО I",
@@ -978,7 +978,7 @@ public class RequestsView extends VerticalLayout {
         vgo.setWidthFull();
         binder.bind(vgo, RequestPosition::getVgo, RequestPosition::setVgo);
 
-        NumberField amountNoVat = new NumberField("Сумма без НДС (млн)");
+        NumberField amountNoVat = new NumberField("Сумма по БДЗ (без НДС/млн. руб.)");
         amountNoVat.setWidthFull();
         binder.forField(amountNoVat).bind(
                 r -> r.getAmountNoVat() != null ? r.getAmountNoVat().doubleValue() : null,
