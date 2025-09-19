@@ -655,12 +655,12 @@ public class RequestsView extends VerticalLayout {
                 .setAutoWidth(true)
                 .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getAmountNoVat()))
-                .setHeader("Сумма/млн. руб. (без НДС)")
+                .setHeader("Сумма по БДЗ (без НДС/млн. руб.)")
                 .setAutoWidth(true)
                 .setFlexGrow(1)
                 .setTextAlign(ColumnTextAlign.END);
         grid.addColumn(r -> valueOrDash(r.getContractAmount() != null ? r.getContractAmount().getAmount() : null))
-                .setHeader("Сумма по договору")
+                .setHeader("Сумма по договору (без НДС/млн. руб.)")
                 .setAutoWidth(true)
                 .setFlexGrow(1)
                 .setTextAlign(ColumnTextAlign.END);
@@ -768,8 +768,7 @@ public class RequestsView extends VerticalLayout {
                         entry("Способ закупки", detailed.getProcurementMethod() != null
                                 ? detailed.getProcurementMethod().getName()
                                 : null),
-                        entry("Сумма (млн)", detailed.getAmount()),
-                        entry("Сумма без НДС (млн)", detailed.getAmountNoVat()),
+                        entry("Сумма по БДЗ (без НДС/млн. руб.)", detailed.getAmountNoVat()),
                         entry("Вводный объект", detailed.isInputObject())
                 ),
                 infoSection("ЦФО I",
@@ -978,7 +977,7 @@ public class RequestsView extends VerticalLayout {
         vgo.setWidthFull();
         binder.bind(vgo, RequestPosition::getVgo, RequestPosition::setVgo);
 
-        NumberField amountNoVat = new NumberField("Сумма без НДС (млн)");
+        NumberField amountNoVat = new NumberField("Сумма по БДЗ (без НДС/млн. руб.)");
         amountNoVat.setWidthFull();
         binder.forField(amountNoVat).bind(
                 r -> r.getAmountNoVat() != null ? r.getAmountNoVat().doubleValue() : null,
