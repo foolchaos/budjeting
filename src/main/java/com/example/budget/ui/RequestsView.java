@@ -655,12 +655,12 @@ public class RequestsView extends VerticalLayout {
                 .setAutoWidth(true)
                 .setFlexGrow(1);
         grid.addColumn(r -> valueOrDash(r.getAmountNoVat()))
-                .setHeader("Сумма/млн. руб. (без НДС)")
+                .setHeader("Сумма по БДЗ (без НДС/млн. руб.)")
                 .setAutoWidth(true)
                 .setFlexGrow(1)
                 .setTextAlign(ColumnTextAlign.END);
         grid.addColumn(r -> valueOrDash(r.getContractAmount() != null ? r.getContractAmount().getAmount() : null))
-                .setHeader("Сумма по договору")
+                .setHeader("Сумма по договору (без НДС/млн. руб.)")
                 .setAutoWidth(true)
                 .setFlexGrow(1)
                 .setTextAlign(ColumnTextAlign.END);
