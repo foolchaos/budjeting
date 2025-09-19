@@ -7,6 +7,7 @@ import com.example.budget.repo.CfoTwoRepository;
 import com.example.budget.repo.ContractRepository;
 import com.example.budget.repo.CounterpartyRepository;
 import com.example.budget.repo.MvzRepository;
+import com.example.budget.repo.ProcurementMethodRepository;
 import com.example.budget.service.BdzService;
 import com.example.budget.service.RequestExcelExportResult;
 import com.example.budget.service.RequestExcelExportService;
@@ -80,6 +81,7 @@ public class RequestsView extends VerticalLayout {
     private final MvzRepository mvzRepository;
     private final ContractRepository contractRepository;
     private final CounterpartyRepository counterpartyRepository;
+    private final ProcurementMethodRepository procurementMethodRepository;
     private final RequestExcelExportService requestExcelExportService;
 
     private final Grid<Request> requestsGrid = new Grid<>(Request.class, false);
@@ -113,6 +115,7 @@ public class RequestsView extends VerticalLayout {
                         CfoTwoRepository cfoTwoRepository,
                         MvzRepository mvzRepository, ContractRepository contractRepository,
                         CounterpartyRepository counterpartyRepository,
+                        ProcurementMethodRepository procurementMethodRepository,
                         RequestExcelExportService requestExcelExportService) {
         this.requestService = requestService;
         this.requestPositionService = requestPositionService;
@@ -123,6 +126,7 @@ public class RequestsView extends VerticalLayout {
         this.mvzRepository = mvzRepository;
         this.contractRepository = contractRepository;
         this.counterpartyRepository = counterpartyRepository;
+        this.procurementMethodRepository = procurementMethodRepository;
         this.requestExcelExportService = requestExcelExportService;
 
         setSizeFull();
@@ -638,7 +642,7 @@ public class RequestsView extends VerticalLayout {
                 .setHeader("Ответственный по договору (Ф.И.О.)")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
-        grid.addColumn(r -> valueOrDash(r.getProcurementMethod()))
+        grid.addColumn(r -> valueOrDash(r.getProcurementMethod() != null ? r.getProcurementMethod().getName() : null))
                 .setHeader("Способ закупки")
                 .setAutoWidth(true)
                 .setFlexGrow(1);
@@ -761,7 +765,9 @@ public class RequestsView extends VerticalLayout {
                         entry("Период (месяц)", detailed.getPeriod()),
                         entry("ВГО", detailed.getVgo()),
                         entry("Предмет договора", detailed.getSubject()),
-                        entry("Способ закупки", detailed.getProcurementMethod()),
+                        entry("Способ закупки", detailed.getProcurementMethod() != null
+                                ? detailed.getProcurementMethod().getName()
+                                : null),
                         entry("Сумма (млн)", detailed.getAmount()),
                         entry("Сумма без НДС (млн)", detailed.getAmountNoVat()),
                         entry("Вводный объект", detailed.isInputObject())
@@ -989,9 +995,22 @@ public class RequestsView extends VerticalLayout {
         period.setWidthFull();
         binder.bind(period, RequestPosition::getPeriod, RequestPosition::setPeriod);
 
-        TextField pm = new TextField("Способ закупки");
-        pm.setWidthFull();
-        binder.bind(pm, RequestPosition::getProcurementMethod, RequestPosition::setProcurementMethod);
+        ComboBox<ProcurementMethod> procurementMethod = new ComboBox<>("Способ закупки");
+        List<ProcurementMethod> procurementMethodItems = new ArrayList<>(procurementMethodRepository.findAll());
+        if (bean.getProcurementMethod() != null) {
+            ProcurementMethod selectedMethod = findById(procurementMethodItems, ProcurementMethod::getId,
+                    bean.getProcurementMethod().getId());
+            if (selectedMethod != null) {
+                bean.setProcurementMethod(selectedMethod);
+            } else {
+                procurementMethodItems.add(bean.getProcurementMethod());
+            }
+        }
+        procurementMethod.setItems(procurementMethodItems);
+        procurementMethod.setItemLabelGenerator(ProcurementMethod::getName);
+        procurementMethod.setWidthFull();
+        procurementMethod.setClearButtonVisible(true);
+        binder.forField(procurementMethod).bind(RequestPosition::getProcurementMethod, RequestPosition::setProcurementMethod);
 
         Checkbox input = new Checkbox("Вводный объект");
         input.setWidthFull();
@@ -1109,7 +1128,7 @@ public class RequestsView extends VerticalLayout {
                 new FormLayout.ResponsiveStep("0", 1),
                 new FormLayout.ResponsiveStep("600px", 2)
         );
-        formLayout.add(requestName, cfo, mvz, bdz, bo, zgd, counterparty, contract, vgo, amountNoVat, subject, period, pm, input);
+        formLayout.add(requestName, cfo, mvz, bdz, bo, zgd, counterparty, contract, vgo, amountNoVat, subject, procurementMethod, period, input);
         formLayout.setColspan(requestName, 2);
         formLayout.setColspan(zgd, 2);
         formLayout.setColspan(subject, 2);

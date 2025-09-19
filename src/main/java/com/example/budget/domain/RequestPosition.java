@@ -51,7 +51,9 @@ public class RequestPosition {
     private String subject; // Предмет договора
     private String period; // Период (месяц)
     private boolean inputObject; // Вводный объект
-    private String procurementMethod; // Способ закупки
+    @ManyToOne
+    @JoinColumn(name = "procurement_method_id")
+    private ProcurementMethod procurementMethod; // Способ закупки
 
     @ManyToOne
     @JoinColumn(name = "zgd_id")
@@ -94,8 +96,8 @@ public class RequestPosition {
     public void setPeriod(String period) { this.period = period; }
     public boolean isInputObject() { return inputObject; }
     public void setInputObject(boolean inputObject) { this.inputObject = inputObject; }
-    public String getProcurementMethod() { return procurementMethod; }
-    public void setProcurementMethod(String procurementMethod) { this.procurementMethod = procurementMethod; }
+    public ProcurementMethod getProcurementMethod() { return procurementMethod; }
+    public void setProcurementMethod(ProcurementMethod procurementMethod) { this.procurementMethod = procurementMethod; }
     public Zgd getZgd() { return zgd; }
     public void setZgd(Zgd zgd) { this.zgd = zgd; }
 }

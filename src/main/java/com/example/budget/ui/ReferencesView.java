@@ -10,6 +10,7 @@ import com.example.budget.service.CfoService;
 import com.example.budget.service.CfoTwoService;
 import com.example.budget.service.ContractService;
 import com.example.budget.service.CounterpartyService;
+import com.example.budget.service.ProcurementMethodService;
 import com.example.budget.service.ZgdService;
 import com.example.budget.service.MvzService;
 import com.vaadin.flow.component.HasSize;
@@ -75,13 +76,15 @@ public class ReferencesView extends SplitLayout {
     private final MvzService mvzService;
     private final ContractService contractService;
     private final CounterpartyService counterpartyService;
+    private final ProcurementMethodService procurementMethodService;
 
     private final ListBox<String> leftMenu = new ListBox<>();
     private final Div rightPanel = new Div();
 
     public ReferencesView(BdzService bdzService, BoService boService, ZgdService zgdService,
                           CfoService cfoService, CfoTwoService cfoTwoService, CfoRepository cfoRepository, CfoTwoRepository cfoTwoRepository,
-                          MvzService mvzService, ContractService contractService, CounterpartyService counterpartyService) {
+                          MvzService mvzService, ContractService contractService, CounterpartyService counterpartyService,
+                          ProcurementMethodService procurementMethodService) {
         this.bdzService = bdzService;
         this.boService = boService;
         this.zgdService = zgdService;
@@ -92,9 +95,10 @@ public class ReferencesView extends SplitLayout {
         this.mvzService = mvzService;
         this.contractService = contractService;
         this.counterpartyService = counterpartyService;
+        this.procurementMethodService = procurementMethodService;
 
         setSizeFull();
-        leftMenu.setItems("ЦФО I", "ЦФО II", "БДЗ", "БО", "ЗГД", "МВЗ", "Контрагент", "Договор");
+        leftMenu.setItems("ЦФО I", "ЦФО II", "БДЗ", "БО", "ЗГД", "МВЗ", "Контрагент", "Договор", "Способ закупки");
         leftMenu.setValue("ЦФО I");
         leftMenu.addValueChangeListener(e -> renderRight(e.getValue()));
 
@@ -118,6 +122,7 @@ public class ReferencesView extends SplitLayout {
             case "МВЗ" -> rightPanel.add(mvzGrid());
             case "Контрагент" -> rightPanel.add(counterpartyGrid());
             case "Договор" -> rightPanel.add(contractGrid());
+            case "Способ закупки" -> rightPanel.add(procurementMethodGrid());
         }
     }
 
@@ -1451,6 +1456,122 @@ public class ReferencesView extends SplitLayout {
             }
         });
         cfoFilter.addValueChangeListener(e -> {
+            if (refreshHolder[0] != null) {
+                refreshHolder[0].run();
+            }
+        });
+
+        return layout;
+    }
+
+    private VerticalLayout procurementMethodGrid() {
+        Grid<ProcurementMethod> grid = new Grid<>(ProcurementMethod.class, false);
+
+        TextField nameFilter = new TextField();
+        nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        nameFilter.setClearButtonVisible(true);
+
+        grid.addColumn(ProcurementMethod::getName)
+                .setHeader(columnHeaderWithFilter("Наименование", nameFilter));
+
+        Supplier<List<ProcurementMethod>> loader = () -> {
+            String nameValue = normalizeFilterValue(nameFilter.getValue());
+            return procurementMethodService.findAll().stream()
+                    .filter(item -> matchesFilter(item.getName(), nameValue))
+                    .toList();
+        };
+
+        Runnable[] refreshHolder = new Runnable[1];
+
+        VerticalLayout layout = genericGrid(ProcurementMethod.class, grid,
+                loader,
+                procurementMethodService::save,
+                procurementMethodService::delete,
+                (selected, refresh) -> {
+                    ProcurementMethod bean = selected != null ? selected : new ProcurementMethod();
+                    Dialog dialog = new Dialog("Способ закупки");
+                    Binder<ProcurementMethod> binder = new Binder<>(ProcurementMethod.class);
+                    TextField name = new TextField("Наименование");
+                    name.setWidthFull();
+                    binder.forField(name).bind(ProcurementMethod::getName, ProcurementMethod::setName);
+                    binder.setBean(bean);
+
+                    Button save = new Button("Сохранить", e -> {
+                        procurementMethodService.save(binder.getBean());
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        dialog.close();
+                    });
+                    Button delete = new Button("Удалить", e -> {
+                        if (bean.getId() != null) {
+                            procurementMethodService.delete(bean);
+                        }
+                        Runnable targetRefresh = refreshHolder[0] != null ? refreshHolder[0] : refresh;
+                        targetRefresh.run();
+                        dialog.close();
+                    });
+                    delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
+                    Button close = new Button("Закрыть", e -> dialog.close());
+                    dialog.add(new FormLayout(name), new HorizontalLayout(save, delete, close));
+                    return dialog;
+                },
+                refresh -> refreshHolder[0] = refresh,
+                context -> {
+                    FileBuffer buffer = new FileBuffer();
+                    Upload upload = new Upload(buffer);
+                    upload.setAcceptedFileTypes(".xlsx");
+                    upload.setMaxFiles(1);
+                    upload.setMaxFileSize((int) IMPORT_MAX_FILE_SIZE);
+                    upload.setDropAllowed(false);
+                    upload.setAutoUpload(true);
+                    upload.getStyle().set("padding", "0");
+                    Button importButton = new Button("Импорт");
+                    importButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                    upload.setUploadButton(importButton);
+
+                    UploadI18N i18n = new UploadI18N();
+                    i18n.setError(new UploadI18N.Error()
+                            .setFileIsTooBig("Файл превышает 10 МБ")
+                            .setIncorrectFileType("Неверный тип файла. Ожидается .xlsx")
+                            .setTooManyFiles("Можно загрузить только один файл"));
+                    upload.setI18n(i18n);
+
+                    upload.addFileRejectedListener(event ->
+                            showErrorNotification(event.getErrorMessage()));
+                    upload.addFailedListener(event ->
+                            showErrorNotification("Загрузка файла прервана"));
+                    upload.addSucceededListener(event -> {
+                        Path tempFile = buffer.getFileData().getFile().toPath();
+                        try {
+                            ExcelImportResult result = procurementMethodService.importFromXlsx(tempFile);
+                            showSuccessNotification(String.format(
+                                    "Импорт способов закупки завершён: создано %d, обновлено %d, обработано %d",
+                                    result.created(), result.updated(), result.processed()));
+                            Runnable targetRefresh = refreshHolder[0] != null
+                                    ? refreshHolder[0]
+                                    : context.refresh();
+                            if (targetRefresh != null) {
+                                targetRefresh.run();
+                            }
+                        } catch (ExcelImportException ex) {
+                            showErrorNotification(ex.getMessage());
+                        } catch (Exception ex) {
+                            showErrorNotification("Не удалось импортировать файл");
+                        } finally {
+                            try {
+                                Files.deleteIfExists(tempFile);
+                            } catch (IOException ignored) {
+                            }
+                            upload.clearFileList();
+                        }
+                    });
+
+                    context.actions().setWidthFull();
+                    upload.getStyle().set("margin-left", "auto");
+                    context.actions().add(upload);
+                });
+
+        nameFilter.addValueChangeListener(e -> {
             if (refreshHolder[0] != null) {
                 refreshHolder[0].run();
             }
